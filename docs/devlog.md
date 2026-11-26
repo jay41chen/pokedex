@@ -102,10 +102,15 @@
 - 要寫進 NOTES：系統字級 1.5 倍時，96dp 卡片上較長的名字會被截斷（人決定不修）。
 - 要寫進 NOTES：`PokedexTheme` 同時負責狀態列 scrim 版面，之後有沉浸式畫面要先拆開；詳細頁顯示規則與外觀沒有 UI 測試，靠 Preview、截圖與人工檢查。
 - 首頁 UI 延後的低嚴重度項目，以及卡片底色、狀態列圖示顏色、紫色分隔線，併到 theme 階段；寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
+- 待人決定：RD-data 打算加 R1–R4 instrumented 測試（抓 repository 讀取 SQL 的 JOIN 寫錯），spec 測試清單沒有；要不要列進 spec。
+- Hilt 綁定歸屬（RD-data 提出，需同步給 RD-app）：`TimeSource`、`@ApplicationScope` 由 `:data` 提供，`:app` 不可再綁，否則 duplicate binding；`OkHttpClient` 由 `:data` 以 `@Singleton` 提供給 Coil 共用（spec「共用一個 `OkHttpClient`」），Coil 設定在 `:app`。
 
 **下一步**
-- RD-data：repository＋`:data` Hilt binding（RD-app 的整合在等這個）。
-- RD-app：等 `:data` Hilt binding 進 main 後做 Hilt＋Navigation 整合與手動驗證。Navigation 延後是因為 NavHost 要向 Hilt 取 VM、用 assisted injection 傳 route id，binding 沒進來前無法編譯（人決定）。
+- 2026-11-26 晚上暫停，隔天繼續。
+- RD-data：repository＋`:data` Hilt binding，提議拆兩段，等人放行：
+  - R：兩個 repository 加讀取用的 DAO（要跑模擬器）。
+  - H：`:data` 的 Hilt module、網路、真的 reporter、logger、註解清理。
+- RD-app：已 rebase 到 `0f5e1bf`，等 `:data` Hilt binding 進 main 後做 Hilt＋Navigation 整合與手動驗證。Navigation 延後是因為 NavHost 要向 Hilt 取 VM、用 assisted injection 傳 route id，binding 沒進來前無法編譯（人決定）。
 - 檢查點二（第 3 天結束）：★ 10 個全過（S1、S2 在 `2cb099a`）。
-- 合併後的 main（`69b3e97`）：`assembleDebug` 與三個 module 的 JVM 測試 26 個全過（17s，`--rerun-tasks`）。
+- 合併後的 main（`0f5e1bf`）：`assembleDebug` 與三個 module 的 JVM 測試 61 個全過（domain 5、data 47、app 9；29s，`--rerun-tasks`）。
 - 估時：面談時講約 18.5h，範圍調整後約 17h。
