@@ -14,8 +14,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(platform(libs.kotlinx.coroutines.bom))
-    implementation(libs.kotlinx.coroutines.core)
+    api(platform(libs.kotlinx.coroutines.bom))
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

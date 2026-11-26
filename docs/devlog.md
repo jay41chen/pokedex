@@ -2,7 +2,7 @@
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
 
-**時間**：面談與契約討論沒有記錄起訖時間。Phase 0a：18:04–18:09（Do 約 3 分鐘、Judge 約 1.5 分鐘）。
+**時間**：面談與契約討論沒有記錄起訖時間。Phase 0a：18:04–18:09（Do 約 3 分鐘、Judge 約 1.5 分鐘）。Phase 0b：18:12–18:36（含契約修訂與兩輪 Judge）。
 
 **做了什麼**
 - 第一次技術面談，議定交付範圍，結論寫在 ADR 0002、0003。
@@ -13,6 +13,11 @@
   - AI 產出：build 設定、wrapper、`PokedexApp` 與空的 `MainActivity`；Room 2.8.5、Coil 3.6.3 由 AI 查最新穩定版。
   - Judge：通過，3 個低嚴重度：`:domain` 的 coroutines 應用 `api`（併入 0b）、多了未回報的 foojay settings plugin、只有佔位 theme（交給 RD-app）。
   - 編譯時間：首次 `assembleDebug` 1m12s（含下載依賴），有快取 0.9s，`--rerun-tasks` 13s。
+- Phase 0b：`:domain` 全部（model、三個 repository 介面、7 個 use case、`groupByType`）與 D1 測試 5 個（待 commit）。
+  - AI 產出：照 spec 第 1–3 輪逐字實作；mutation 自測 3 個皆被抓到。
+  - Judge 首審：通過，但指出 spec 契約本身的風險：`results` 是 `SharedFlow(replay = 0)`，冷啟動離線時結果在 HomeViewModel 建立前就發出而遺失，空畫面卡在 `Loading`。
+  - 契約修訂：sync 結果改成狀態 `status: StateFlow<SyncStatus>`（Idle／Running／Finished(round, result)），「顯示過了沒」留在 VM（ADR 0006 修訂）。
+  - Judge 複審：需修正（只有文件），補上「HomeViewModel 晚於 onStart 建立」的前提與手動驗證、旋轉時不退回 `Loading`、`lastShownRound` 的推進規則、check-and-set 要原子。
 
 **決定**
 - [0001](design/0001-module-split-and-layering.md) Module 切法與分層
@@ -24,6 +29,7 @@
 - [0007](design/0007-tests-without-extra-libraries.md) 測試用 fake，不引入 MockWebServer 和 Robolectric
 - tech spec 改放 repo、以 repo 版為正本：subagent 與 worktree 直接讀檔，契約改動走 commit 有 diff 可查。
 - 依賴清單（version catalog）只由 PO 改，RD 要加依賴先回報。
+- [0006](design/0006-failure-classification-and-user-messages.md) 修訂：sync 結果從事件改成狀態，`:domain` 凍結前完成。
 
 **AI 協作紀錄**：AI 提出、但被我推翻或修正的方案（NOTES 第 1 題素材）
 - AI 建議預先建好 18 個 type 列，避免畫面跳動。我指出要先抓到 detail 才知道有哪些 type，後來確認第一代實際只有 17 種，這個做法根本做不到（ADR 0002）。
@@ -35,6 +41,8 @@
 - AI 建議拿掉 `PartialFailure`。我決定保留（ADR 0006）。
 - AI 建議讓 interceptor 也注入網路狀態檢查。我指出耦合太高，最後只在 sync 裡檢查網路（ADR 0004）。
 - AI 的專案骨架產生器（template）輸出 hexagonal 架構：feature module、`AppResult` 包裝、Turbine 與 MockK。評估後不套用，只取版本組合與 KSP #2729 的繞法；理由是只有 2 個畫面、資料以本機 DB 為準（讀取不會有網路錯誤）、測試不引入額外套件（ADR 0001、0007）。
+- Judge 抓到 sync 結果會在 VM 建立前遺失後，AI 先提 `replay = 1`。我認為它和「改觸發時機」都只是 workaround，要求邏輯上完整的解法（ADR 0006）。
+- AI 接著提議把「訊息顯示過了沒」存在 repository。我指出這是把 presentation 的事放進 domain；最後改成 repository 只公開 sync 狀態（含 round），顯示與否由 VM 判斷（ADR 0006）。
 
 **未決・卡住**
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。

@@ -107,7 +107,7 @@ email Q3（資料是否靜態）會議未明確答覆；採靜態假設（補缺
 
 1. `MainActivity.onStart` → `MainViewModel.onAppForegrounded()` → `RequestSync` → `SyncRepository.requestSync()`。
 2. 一輪在 application scope 執行，同時只有一輪；「哪些要抓」只由 `pendingIds()` 決定。
-3. 結果經 `SyncRepository.results` → `ObserveSyncResult` → `HomeViewModel`，轉成 `catalog` 狀態與 `message`。
+3. 狀態經 `SyncRepository.status` → `ObserveSyncStatus` → `HomeViewModel`，推導出 `catalog` 狀態與 `message`。
 
 之後加 B（每日更新）只改 `pendingIds()` 的選取條件、加 `fetched_at` 與冷卻，預估 B 本身約 1h，先 A 後 B 只多約 0.3h。
 
@@ -212,8 +212,14 @@ interface CaptureRepository {
 }
 
 interface SyncRepository {
-    fun requestSync()                // 非 suspend；在 application scope 執行；進行中再呼叫會被忽略
-    val results: Flow<SyncResult>    // SharedFlow(replay = 0)：每輪結束發一次
+    fun requestSync()                   // 非 suspend；回傳前 status 已是 Running；在 application scope 執行；進行中再呼叫會被忽略
+    val status: StateFlow<SyncStatus>   // 狀態，不是事件：任何時候開始收集都拿得到目前值
+}
+
+sealed interface SyncStatus {
+    data object Idle : SyncStatus                                              // 這個 process 還沒跑過任何一輪
+    data object Running : SyncStatus
+    data class Finished(val round: Long, val result: SyncResult) : SyncStatus  // round 從 1 開始，每輪加 1
 }
 
 sealed interface SyncResult {
@@ -228,7 +234,7 @@ sealed interface SyncResult {
 | 分組與排序放 use case，repo 回平的列表 | 規格明寫的規則放在 domain，是純函式，JVM 上可測 | 在 SQL／mapper 做完：測試要跑 Room，規則散在 SQL |
 | `release` 冪等 | 連點兩下不該出錯 | 不存在時丟錯：UI 要多處理一種沒意義的錯誤 |
 | `capture` 一定成功 | 會議結論；只有已在 type 列的寶可夢能被捕捉，資料必定存在，違反即 bug（FK RESTRICT 會丟） | 回傳結果型別：為不會發生的情況加分支 |
-| `requestSync()` 加結果 Flow | sync 在 `onStart` 觸發，要撐過旋轉與 VM 清除；repo 保證同時只跑一輪 | `suspend fun sync()`：綁在呼叫端的 scope，畫面一走就被取消 |
+| `requestSync()` 加 `status: StateFlow` | sync 在 `onStart` 觸發，要撐過旋轉與 VM 清除；repo 保證同時只跑一輪。sync 是一個過程，公開成狀態：VM 不論何時建立都讀得到目前狀態，不靠誰先訂閱；`requestSync()` 回傳前就是 `Running`；HomeViewModel 由第一次組合建立，而 `setContent` 的第一次組合在 `onResume` 之後，晚於 `onStart`，所以新開的畫面讀不到上一個 Activity 的舊結果（前提由 Android 生命週期保證，列入手動驗證；不成立時最壞是多跳一次舊 Snackbar）。`round` 讓連續兩輪相同結果仍是不同的值 | `suspend fun sync()`：綁在呼叫端的 scope，畫面一走就被取消；`results: SharedFlow(replay = 0)`：VM 建立前結束的一輪會掉，冷啟動離線時卡在 `Loading`；`replay = 1`：Activity 重開時重播舊結果；畫面組合後才觸發：正確性靠我們自己的寫法維持（VM 要立即訂閱、首頁要在組合中），重構就可能壞，壞了會卡在 `Loading`，且無法用 JVM 測試驗證；repo 記「訊息已顯示」：把畫面的事放進 domain |
 | 保留 `PartialFailure` | 讓使用者知道列表不完整的原因 | 只留兩種結果：缺口只記 log，使用者看到少幾隻卻沒有說明 |
 
 補抓不依賴 `SyncResult`：沒抓到的寶可夢沒有 detail，會留在 `pendingIds()`，下次回前景自動再抓。`SyncResult` 只決定畫面提示。
@@ -243,9 +249,11 @@ Use case 不加 `@Inject`，在 Hilt module 用 `@Provides` 提供；Android 元
 | `ObserveCaptures` | 轉呼叫 repo |
 | `ObservePokemonDetail(id)` | 轉呼叫 repo |
 | `CapturePokemon(id)` / `ReleaseCapture(captureId)` | 轉呼叫 repo |
-| `RequestSync` / `ObserveSyncResult` | 轉呼叫 repo |
+| `RequestSync` / `ObserveSyncStatus` | 轉呼叫 repo |
 
 輕量 MVI：單一 `StateFlow` 輸出、sealed intent 單一入口；不用 MVI 框架，不另拆 reducer。導航不是 intent，UI 直接呼叫導航 lambda。
+
+VM 內部只有一份狀態：`lastShownRound`、最近一次 `Finished` 的 result 這類不需要畫面渲染的值放在 VM 的 private 狀態裡（與 `HomeUiState` 一起，例如包成一個 private data class），不放進 `HomeUiState`，也不另外用散落的 `var`。intent 與資料流（catalog、captures、status）造成的變更，都經同一個 `update { }` 更新這份狀態，對外只暴露 `state: StateFlow<HomeUiState>`。
 
 ```kotlin
 // 首頁
@@ -256,9 +264,9 @@ data class HomeUiState(
     val message: UserMessage?,            // null = 沒有要顯示的 Snackbar
 )
 sealed interface CatalogStatus {
-    data object Loading : CatalogStatus   // DB 空，第一輪 sync 還沒結束
+    data object Loading : CatalogStatus   // DB 空，且 VM 還沒看過任何 Finished
     data object Ready : CatalogStatus     // 至少一隻
-    data class Empty(val offline: Boolean) : CatalogStatus  // DB 空，第一輪已結束
+    data class Empty(val offline: Boolean) : CatalogStatus  // DB 空，且 VM 看過 Finished；offline = 最近一次 Finished 的 result == Offline（之後 Running 期間維持，不退回 Loading）
 }
 enum class UserMessage { Offline, PartialFailure }
 
@@ -295,7 +303,7 @@ class MainViewModel @Inject constructor(private val requestSync: RequestSync) : 
 | 決定 | 理由 | 考慮過的替代 |
 | --- | --- | --- |
 | 三條資料流在 VM 合併 | `Loading`／`Empty` 是畫面概念，不屬於 domain；用 VM 單元測試守 | `ObserveHome` use case：只是把 combine 搬進 domain |
-| Snackbar 訊息放進 state，UI 顯示後回報 | 旋轉、背景都不會掉或重複；測試只需斷言 state，不需 Turbine | `SharedFlow(replay=0)` 會掉；`replay=1` 會重播；`Channel` 取出後被取消會掉 |
+| Snackbar 訊息放進 state，UI 顯示後回報 | 旋轉、背景都不會掉或重複；測試只需斷言 state，不需 Turbine。VM 記 `lastShownRound`：收到 round 比它大的 `Finished` 時立即推進到該 round（`Success` 也推進），不是 `Success` 才產生 message；「顯示過了沒」是畫面的事，留在 VM。旋轉會觸發新的一輪，離線時 Snackbar 會再出現一次（那一輪確實又是離線），接受 | `SharedFlow(replay=0)` 會掉；`replay=1` 會重播；`Channel` 取出後被取消會掉 |
 | Evolves from 前一階段未有 detail（`imageUrl == null`）時不可點 | 詳細頁只會收到已有 detail 的 id，`Loading` 不會卡住 | 可點＋詳細頁處理「還沒資料」：多一個狀態和等待規則 |
 | sync 由 Activity 範圍的 `MainViewModel` 觸發 | 分層規則沒有例外；前景事件不屬於任何畫面 | Activity 直接注入 use case：繞過 VM；用 `HomeViewModel`：範圍不同會建出第二個實例；`ProcessLifecycleOwner`：新依賴 |
 
@@ -349,11 +357,11 @@ suspend fun pendingIds(): PendingWork   // 「哪些要抓」的唯一判斷點
 
 ### 第 4b 輪：sync 執行期與 interceptor（2026-11-26 凍結）
 
-1. `requestSync()`：已有一輪在跑就忽略；否則在 application scope 啟動一輪。
-2. `ConnectivityChecker.isOnline()` 為 false → 發出 `Offline`，結束。
+1. `requestSync()`：已有一輪在跑就忽略；否則先把 `status` 設為 `Running`（同步完成，回傳前），再在 application scope 啟動一輪。「檢查是否在跑」與「設為 Running」必須是一個原子操作（`MutableStateFlow.compareAndSet` 或等效），兩個呼叫同時進來也只會啟動一輪。
+2. `ConnectivityChecker.isOnline()` 為 false → `status = Finished(round, Offline)`，結束。
 3. `pendingIds()`；`needList` 時先抓 list 並寫入，再重算一次。
 4. 佇列：先 `detailIds`、再 `speciesIds`，各自依 id 升冪；5 個 worker 取 id → 抓 → 轉換 → transaction 寫入。
-5. 全部做完後發出結果，優先序 `Offline` > `PartialFailure` > `Success`。
+5. 全部做完後 `status = Finished(round, result)`，result 優先序 `Offline` > `PartialFailure` > `Success`。
 
 | 失敗類型 | 判斷 | 處理 |
 | --- | --- | --- |
@@ -420,13 +428,16 @@ fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的等待；�
 | ★S2 | sync | JVM fake | 離線時開始一輪 | `Offline`，0 個請求 |
 | S3 | sync | JVM fake | id 7 一直 503 | `PartialFailure`；下一輪只請求 7 |
 | S4 | sync | JVM fake | id 7 回 404 | `Success`，其他都寫入 |
-| S5 | sync | JVM fake | 連續呼叫兩次 `requestSync()` | list 只被請求一次 |
+| S5 | sync | JVM fake | 連續呼叫兩次 `requestSync()` | list 只被請求一次；結束後 `round == 1` |
+| S6 | sync | JVM fake | 呼叫 `requestSync()` 後立刻讀 `status`（不推進 dispatcher） | 已是 `Running`；該輪結束後是 `Finished(1, …)`，再跑一輪是 `Finished(2, …)` |
 | ★I1 | interceptor | JVM | 腳本回 503、503、200 | 成功，3 次請求，`Sleeper` 記錄落在 1、2 秒抖動範圍，前兩個 body 都已 close |
 | I2 | interceptor | JVM | 連續 4 次 503 | 回傳 503，4 次請求 |
 | I3 | interceptor | JVM | 404 | 1 次請求 |
 | I4 | interceptor | JVM | 429 配 `Retry-After` 3 與 30 | 3：等 3 秒重試；30：直接回傳 429 |
-| ★V1 | VM | JVM fake | catalog 空、結果 `Offline` | `Empty(offline = true)`，`message == Offline` |
-| V2 | VM | JVM fake | 送出 `MessageShown` | `message == null` |
+| ★V1 | VM | JVM fake | catalog 空、status `Finished(1, Offline)` | `Empty(offline = true)`，`message == Offline` |
+| V2 | VM | JVM fake | status `Finished(1, Offline)` 產生 message 後送出 `MessageShown`，再讓 catalog 發一次新值 | `message == null` |
+| V3 | VM | JVM fake | VM 建立時 status 已是 `Finished(1, Offline)`（VM 晚於該輪結束才建立） | `message == Offline`，不會漏 |
+| V4 | VM | JVM fake | catalog 空；status 依序 `Running` → `Finished(1, Offline)` → `Running` | `Loading` → `Empty(offline = true)` → 仍是 `Empty(offline = true)` |
 
 DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
@@ -460,4 +471,6 @@ DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Ju
 - [ ] `flavor_text` 的 `\f`、`\n` 要怎麼轉換才符合 mock（對照 Charizard、Charmeleon）
 - [ ] sync 進行中 `adb shell am kill`，重開後確認不重抓已完成的
 - [ ] 首次開 app 開飛航模式，再關掉並切回 app
+- [ ] 離線時按返回離開、立刻重開 app：不應出現上一次的舊 Snackbar（驗證「HomeViewModel 晚於 onStart 建立」的前提）
+- [ ] 離線、DB 空時旋轉：不閃 `Loading`；Snackbar 再出現一次屬預期
 - [ ] sync log 中沒有 OkHttp 連線洩漏警告

@@ -33,9 +33,10 @@ sequenceDiagram
   alt a round is already running
     S-->>UC: ignored
   else no round running
+    S->>S: status = Running (before requestSync returns)
     S->>S: isOnline()
     alt offline
-      S-->>S: result = Offline
+      S-->>S: status = Finished(round, Offline)
     else online
       S->>St: pendingIds()
       St-->>S: PendingWork(needList, detailIds, speciesIds)
@@ -50,7 +51,7 @@ sequenceDiagram
         S->>API: GET /pokemon/{id} or /pokemon-species/{id}
         S->>St: writeDetail (detail + types, one transaction) or writeSpecies
       end
-      S-->>S: result = Success / PartialFailure / Offline (see 0006)
+      S-->>S: status = Finished(round, Success / PartialFailure / Offline) (see 0006)
     end
   end
 ```
