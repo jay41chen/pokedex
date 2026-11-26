@@ -9,4 +9,7 @@
     <string name="message_partial_failure">部分資料未載入，稍後會自動重試</string>
     <string name="capture_button">捕捉</string>
     <string name="release_button">釋放</string>
+    <string name="detail_back">返回</string>
+    <string name="detail_evolves_from">Evolves from</string>
+    <string name="detail_loading_placeholder">資料載入中</string>
 </resources>

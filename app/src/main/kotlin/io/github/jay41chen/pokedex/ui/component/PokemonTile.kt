@@ -19,15 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.jay41chen.pokedex.R
 import io.github.jay41chen.pokedex.domain.model.PokemonCard
-
-private val PlaceholderPainter = ColorPainter(Color(0xFFE0E0E0))
 
 @Composable
 fun PokemonTile(
