@@ -9,25 +9,35 @@
 - 和 AI 逐輪討論 module 之間的契約，共五輪，全部凍結，寫在內部的 tech spec。
 - 建立 repo，加入 `.gitignore`、`NOTES.md` 骨架、ADR 0001–0007；ADR 0001、0003–0006 補 mermaid 圖（docs: add ADRs 0001-0007 with diagrams, devlog, and NOTES skeleton `1af8b72`）。
 - tech spec 搬進 repo 成為 `docs/spec.md`；新增專案 `CLAUDE.md`（PO＋RD-data＋RD-app 分工）與 `.claude/agents/doer.md`、`judge.md`（docs: move tech spec into repo, add CLAUDE.md and doer/judge agents `59ba297`）。
-- Phase 0a：三 module Gradle 骨架（`:app` / `:domain` / `:data`），version catalog 放齊已同意套件（待 commit）。
+- Phase 0a：三 module Gradle 骨架（`:app` / `:domain` / `:data`），version catalog 放齊已同意套件（`623e437`）。
   - AI 產出：build 設定、wrapper、`PokedexApp` 與空的 `MainActivity`；Room 2.8.5、Coil 3.6.3 由 AI 查最新穩定版。
   - Judge：通過，3 個低嚴重度：`:domain` 的 coroutines 應用 `api`（併入 0b）、多了未回報的 foojay settings plugin、只有佔位 theme（交給 RD-app）。
   - 編譯時間：首次 `assembleDebug` 1m12s（含下載依賴），有快取 0.9s，`--rerun-tasks` 13s。
-- Phase 0b：`:domain` 全部（model、三個 repository 介面、7 個 use case、`groupByType`）與 D1 測試 5 個（待 commit）。
+- Phase 0b：`:domain` 全部（model、三個 repository 介面、7 個 use case、`groupByType`）與 D1 測試 5 個（`224e580`）。
   - AI 產出：照 spec 第 1–3 輪逐字實作；mutation 自測 3 個皆被抓到。
   - Judge 首審：通過，但指出 spec 契約本身的風險：`results` 是 `SharedFlow(replay = 0)`，冷啟動離線時結果在 HomeViewModel 建立前就發出而遺失，空畫面卡在 `Loading`。
   - 契約修訂：sync 結果改成狀態 `status: StateFlow<SyncStatus>`（Idle／Running／Finished(round, result)），「顯示過了沒」留在 VM（ADR 0006 修訂）。
   - Judge 複審：需修正（只有文件），補上「HomeViewModel 晚於 onStart 建立」的前提與手動驗證、旋轉時不退回 `Loading`、`lastShownRound` 的推進規則、check-and-set 要原子。
 - Phase 0 完成（`224e580`），開 worktree：`../pokedex-data`（`data`）、`../pokedex-app`（`app`），session 名稱 `po`／`rd-data`／`rd-app`。
-- RD-data mapper 階段：18:43–18:48（Do 3 分鐘、Judge 2 分鐘），待 commit。
+- RD-data mapper 階段：18:43–18:48（Do 3 分鐘、Judge 2 分鐘）（`c8ddc62`）。
   - AI 產出：3 個 DTO、5 個 Room entity（尚無 DAO）、雙向 mapper、`MappersTest` 12 個（含 M1–M4，用 PokéAPI 真實 fixture）。
   - Judge：通過；3 個新 mutation 有 2 個漏網（151 邊界 `<=` 改 `<`、對照表 32／122 未測、`idFromUrl` 測試分不出取法），低嚴重度。
   - 修正輪 18:59–19:01：人決定 4 項全補；補 32／122、151／152 邊界、`/api/2/` URL 三組斷言，測試 14 個全過，複審通過。RD 自己在交給 doer 前發現原本的 `/api/v2/` 例子測不出取錯段而改正。
-- RD-app HomeViewModel 階段：18:44–18:48（Do 2 分鐘、Judge 1.5 分鐘），待 commit。
+- RD-app HomeViewModel 階段：18:44–18:48（Do 2 分鐘、Judge 1.5 分鐘）（`30e627f`）。
   - AI 產出：`HomeContract`（照 spec 第 3 輪）、`HomeViewModel`（單一 private 狀態 + `update {}`）、手寫 fake repository、V1–V4。
   - Judge：通過；漏網 mutation「Success 不清掉舊 message」，低嚴重度 3 項（該行為無測試、fake 有死碼、MainDispatcherRule 隱含依賴 Unconfined）。
   - 人決定：`@HiltViewModel` 延到 Hilt 整合階段；`Finished(Success)` 清掉尚未顯示的舊 message（spec 未定義，PO 已補進 spec 第 3 輪與 ADR 0006，新增 V5）。
   - 修正輪 18:58–19:01：補 V5（Success 清掉未顯示的舊 message）、刪 fake 死碼、MainDispatcherRule 加 KDoc；測試 5 個全過，複審通過，剩一個未用 import。
+- RD-data DB 與 SyncStore 階段：19:24–19:43（Do 2 分鐘；首審含 instrumented 6 分鐘；修正 2 分鐘；複審 5 分鐘）（`bdd25ba`）。
+  - AI 產出：`PendingWork`、`SyncStore`、`PokedexDatabase` v1（schema 匯出）、`SyncDao`／`CaptureDao`（只用 `@Upsert`）、`RoomSyncStore`；B1–B5 instrumented 6/6 通過。
+  - Judge 首審：需修正。中：B4 的插入順序讓「依 `c.id` 排序」也能過，守不住 rowid 排序規則；低：B2 catch 範圍太寬。修正後複審通過。
+  - 實測佐證（NOTES 第 2 題素材）：改成 `@Insert(REPLACE)` 時因 capture 的 RESTRICT 失敗，B3 擋下；B2 實際丟出 FOREIGN KEY constraint failed (787)。
+  - 決定：`writeDetail` 不先刪舊 type（補缺只寫一次）；每日更新（B）時要改，已記進 spec backlog。
+- RD-app MainViewModel／DetailViewModel 階段：19:25–19:29（Do 2 分鐘、Judge 1.5 分鐘）（`69b3e97`）。
+  - AI 產出：`MainViewModel`、`DetailContract`（照 spec 第 3 輪）、`DetailViewModel`（id 由 `SavedStateHandle` 讀）、1 個測試；`@HiltViewModel` 與 `onStart` 接線延到 Hilt 整合。
+  - Judge：通過；漏網 mutation `filterNotNull()`（契約裡 detail 不會變回 null），低嚴重度 3 項。
+  - 修正輪 19:44–19:46：3 項全修；人決定 `DetailViewModel` 的 id 改由畫面傳入（Hilt 整合時用 assisted injection），不再從 `SavedStateHandle` 讀字串 key，型別由編譯器保證；新增「detail 變回 null 時回到 Loading」測試。複審通過。
+- 意外：RD-data 的 commit 指令被貼到主資料夾，產生訊息是 data、內容是 domain 的錯誤 commit；RD-app 發現後通知 PO，在 main 上 rebase 移除，未推上遠端。CLAUDE.md 新增規則：commit 指令第一行必須 `cd` 到自己的 worktree（`9ba20d5`）。
 
 **決定**
 - [0001](design/0001-module-split-and-layering.md) Module 切法與分層
@@ -56,10 +66,11 @@
 
 **未決・卡住**
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
-- `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認。
+- `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認（mapper 目前換成空白，標待確認）。
 
 **下一步**
-- commit 本次的 spec、CLAUDE.md、agents。
-- Phase 0（PO 用 doer/judge）：骨架 `:app` / `:domain` / `:data`、version catalog、整個 `:domain` 與 D1。先評估 `android-project-template` skill 能不能用。
-- Phase 0 commit 後開兩個 worktree，啟動 RD-data、RD-app。
+- RD-data：B 階段（DAO、`@Database`、`RoomSyncStore`，★B1–B4，instrumented）→ sync（★S1、S2）＋ interceptor（★I1）。
+- RD-app：MainViewModel、DetailViewModel → 首頁 UI → 詳細頁 UI 與 Navigation，先接 fake repo。
+- 檢查點二（第 3 天結束）：★ 10 個全過；目前已過 D1、M1、V1、B1–B4，剩 S1、S2、I1。
+- 合併後的 main（`69b3e97`）：`assembleDebug` 與三個 module 的 JVM 測試 26 個全過（17s，`--rerun-tasks`）。
 - 估時：面談時講約 18.5h，範圍調整後約 17h。

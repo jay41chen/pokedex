@@ -463,7 +463,7 @@ DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Ju
 | circuit breaker／429 全域暫停 | 排除 | 以單一請求為單位；一輪只有 303 個請求 |
 | MockWebServer、Robolectric | 排除 | fake 與拆分測試可達同樣覆蓋 |
 | 永久性失敗提示使用者回報 | 排除 | MVP 只記 log；正式產品改接自動回報（Crashlytics non-fatal） |
-| 每日更新（B） | backlog | 排在 Bonus 後；切入點 `pendingIds()` 已留 |
+| 每日更新（B） | backlog | 排在 Bonus 後；切入點 `pendingIds()` 已留。屆時 `writeDetail` 要在同一個 transaction 先刪該 id 的舊 type 再寫（補缺語意下只寫一次，目前不刪） |
 | 停在 app 內時網路恢復立刻補抓 | backlog | 需監聽網路或 WorkManager |
 
 ## 待實測
