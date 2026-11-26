@@ -155,6 +155,10 @@ private fun TypeChip(type: TypeName) {
     }
 }
 
+/** Evolves from 列點下去要去的 id；前一階段的圖還沒抓到（imageUrl == null）就沒有 detail 可看，回傳 null 表示不可點。 */
+internal fun evolvesFromClickTarget(evolvesFrom: PokemonCard): PokemonId? =
+    if (evolvesFrom.imageUrl != null) evolvesFrom.id else null
+
 @Composable
 private fun EvolvesFromSection(
     species: Species?,
@@ -179,9 +183,9 @@ private fun EvolvesFromSection(
             )
         }
     } else {
-        // 圖還沒抓到（imageUrl == null）的前一階段不可點，沒有 detail 可看
-        val rowModifier = if (evolvesFrom.imageUrl != null) {
-            Modifier.clickable { onPokemonClick(evolvesFrom.id) }
+        val target = evolvesFromClickTarget(evolvesFrom)
+        val rowModifier = if (target != null) {
+            Modifier.clickable { onPokemonClick(target) }
         } else {
             Modifier
         }
