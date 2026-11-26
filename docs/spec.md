@@ -376,8 +376,9 @@ suspend fun pendingIds(): PendingWork   // 「哪些要抓」的唯一判斷點
 - 重試：`IOException`（call 已取消除外）、5xx、429；其他 4xx 不重試。
 - 最多 4 次嘗試，等待 1、2、4 秒各 ±50% 抖動。
 - 429 照 `Retry-After`，上限 `MAX_RETRY_AFTER = 5` 秒；超過就不等，直接回傳 429，留到下次回前景補抓。
+- `Retry-After` 缺少、不是整數或是負數時，照一般退避。
 - 重試前必須 `response.close()`。
-- 等待抽成可注入的 `Sleeper`；等待前後檢查 `chain.call().isCanceled()`。
+- 等待抽成可注入的 `Sleeper`；每次嘗試前檢查 `chain.call().isCanceled()`。
 - 不判斷網路狀態，沒有外部依賴。
 - 保留 OkHttp 預設 `retryOnConnectionFailure = true`；「4 次」是我們的嘗試次數，每次可能含 OkHttp 內建的一次。
 
@@ -400,7 +401,7 @@ interface SyncStore {
     suspend fun writeSpecies(species: PokemonSpeciesEntity)
 }
 
-fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的等待；測試只記錄不真的等
+internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的等待；測試只記錄不真的等
 ```
 
 | 決定 | 理由 | 考慮過的替代 |

@@ -37,6 +37,19 @@
   - AI 產出：`MainViewModel`、`DetailContract`（照 spec 第 3 輪）、`DetailViewModel`（id 由 `SavedStateHandle` 讀）、1 個測試；`@HiltViewModel` 與 `onStart` 接線延到 Hilt 整合。
   - Judge：通過；漏網 mutation `filterNotNull()`（契約裡 detail 不會變回 null），低嚴重度 3 項。
   - 修正輪 19:44–19:46：3 項全修；人決定 `DetailViewModel` 的 id 改由畫面傳入（Hilt 整合時用 assisted injection），不再從 `SavedStateHandle` 讀字串 key，型別由編譯器保證；新增「detail 變回 null 時回到 Loading」測試。複審通過。
+- RD-app 首頁 UI 階段：19:51–20:07（Do 1.5 分鐘、Judge 1 分鐘，之後截圖與低嚴重度修正）（`b0e2e25`）。
+  - 人決定：這階段只用 Preview 驗證；畫面文字照 spec 用中文、全部放 `strings.xml`；寶貝球用自己畫的 vector。
+  - AI 產出：`HomeScreen`（無狀態，含 Snackbar 與 5 個 Preview）、`PocketSection`（固定 160dp，key 用 captureId）、`CatalogContent`（type 列 key 用 type、列內 key 用 id，加 `animateItem`）、`PokemonTile`（Coil，有佔位圖）、`ic_pokeball.xml`；不接 VM、不新增依賴。沒有自動化 UI 測試（Compose UI test 要新增依賴）。
+  - Judge：通過；逐條檢查 12 項全過（key 不重複、`MessageShown` 在 `showSnackbar` 回傳後才送、Capture／Release 沒接反、文字與 spec 一致、`:app` 沒有 import `:data`）；低嚴重度 6 項。Judge 讀不到 mock 圖，與 mock 的比對由人看 Preview。
+  - 語意確認：Snackbar 顯示中又來一輪同樣的 `Offline`，`message` 是同一個 enum 值、StateFlow 去重，只顯示一次；符合「較新一輪取代尚未顯示的 message」，人確認接受。
+  - 模擬器截圖（19:58–20:01）：人當時不在電腦前，改用 debug source set 裡的暫時 harness 截 7 張圖，用完已刪除、模擬器已關、字級已還原。結構與 mock 一致。系統字級 1.5 倍時「Charmander」在 96dp 卡片被截成「Charman…」，人決定不修，寫進 NOTES。卡片底色、edge-to-edge 狀態列圖示顏色、紫色分隔線併到 theme 階段；寶貝球 32dp 觸控範圍留到 Hilt 整合後手動驗證。
+  - 低嚴重度修正（Do 20:05–20:06、複審 20:07）：人選 3 項（`rememberUpdatedState`、重複的 null 判斷、完整套件名改 import），其餘延後。複審通過，assembleDebug 與 Home 5 個、Detail 2 個單元測試通過，沒有新問題。
+- RD-data retry interceptor 階段：19:49–20:04（Do 3 分鐘、修正 2 分鐘、首審因模擬器排隊暫停約 10 分鐘、複審 2 分鐘）（`5c3750e`）。
+  - AI 產出：`Sleeper`（internal）與 `ThreadSleeper`、`RetryInterceptor`（最多 4 次，退避 1／2／4 秒 ±50%，只重試 500..599 與 429，重試前 close，每次嘗試前檢查取消）、`RetryInterceptorTest` 13 個（真的 OkHttpClient 加腳本 responder，追蹤 body 是否 close）。
+  - doer 回報規格歧義，人決定 2 點：等待後的取消檢查和迴圈頂端重複，刪掉（原本的 mutation 抓不到它）；負數 `Retry-After` 會讓 `Thread.sleep` 丟例外、繞過失敗分類，改走一般退避。
+  - Judge 首審：中 1 項，回傳給呼叫端的最後一個 response 沒被 close 的測試守著，已補；低 4 項已修（`Retry-After` 5／6 邊界、第 3 次等待範圍、4 次 IOException 後重新丟出、`>= 500` 改 `500..599`）；抖動沒注入所以「完全沒抖動」抓不到，人決定不做。複審通過。
+  - 已知代價：Retrofit 取消不會中斷執行緒，正在 sleep 的 worker 最長約 6 秒才停。
+  - spec 同步（人同意）：取消檢查改成「每次嘗試前」、`Sleeper` 標 `internal`、`Retry-After` 缺少／非整數／負數走一般退避。
 - 意外：RD-data 的 commit 指令被貼到主資料夾，產生訊息是 data、內容是 domain 的錯誤 commit；RD-app 發現後通知 PO，在 main 上 rebase 移除，未推上遠端。CLAUDE.md 新增規則：commit 指令第一行必須 `cd` 到自己的 worktree（`9ba20d5`）。
 
 **決定**
@@ -67,10 +80,12 @@
 **未決・卡住**
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
 - `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認（mapper 目前換成空白，標待確認）。
+- 要寫進 NOTES：系統字級 1.5 倍時，96dp 卡片上較長的名字會被截斷（人決定不修）。
+- 首頁 UI 延後的低嚴重度項目，以及卡片底色、狀態列圖示顏色、紫色分隔線，併到 theme 階段；寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
 
 **下一步**
-- RD-data：B 階段（DAO、`@Database`、`RoomSyncStore`，★B1–B4，instrumented）→ sync（★S1、S2）＋ interceptor（★I1）。
-- RD-app：MainViewModel、DetailViewModel → 首頁 UI → 詳細頁 UI 與 Navigation，先接 fake repo。
-- 檢查點二（第 3 天結束）：★ 10 個全過；目前已過 D1、M1、V1、B1–B4，剩 S1、S2、I1。
+- RD-data：sync（★S1、S2）。
+- RD-app：詳細頁 UI 與 Navigation，先接 fake repo → Hilt 整合與手動驗證。
+- 檢查點二（第 3 天結束）：★ 10 個；已過 D1、M1、V1、B1–B4、I1，剩 S1、S2。
 - 合併後的 main（`69b3e97`）：`assembleDebug` 與三個 module 的 JVM 測試 26 個全過（17s，`--rerun-tasks`）。
 - 估時：面談時講約 18.5h，範圍調整後約 17h。
