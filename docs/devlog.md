@@ -7,8 +7,8 @@
 **做了什麼**
 - 第一次技術面談，議定交付範圍，結論寫在 ADR 0002、0003。
 - 和 AI 逐輪討論 module 之間的契約，共五輪，全部凍結，寫在內部的 tech spec。
-- 建立 repo，加入 `.gitignore`、`NOTES.md` 骨架、ADR 0001–0007（待 commit）。
-- ADR 0001、0003–0006 補 mermaid 圖：分層、sync 時序、重試判斷、ER 圖（取代 ASCII）、訊息時序（待 commit）。
+- 建立 repo，加入 `.gitignore`、`NOTES.md` 骨架、ADR 0001–0007；ADR 0001、0003–0006 補 mermaid 圖（docs: add ADRs 0001-0007 with diagrams, devlog, and NOTES skeleton `1af8b72`）。
+- tech spec 搬進 repo 成為 `docs/spec.md`；新增專案 `CLAUDE.md`（PO＋RD-data＋RD-app 分工）與 `.claude/agents/doer.md`、`judge.md`（待 commit）。
 
 **決定**
 - [0001](design/0001-module-split-and-layering.md) Module 切法與分層
@@ -18,6 +18,8 @@
 - [0005](design/0005-table-split-and-write-semantics.md) 拆成五張表，寫入一律用 upsert
 - [0006](design/0006-failure-classification-and-user-messages.md) 失敗分類，提示訊息存在 UI state
 - [0007](design/0007-tests-without-extra-libraries.md) 測試用 fake，不引入 MockWebServer 和 Robolectric
+- tech spec 改放 repo、以 repo 版為正本：subagent 與 worktree 直接讀檔，契約改動走 commit 有 diff 可查。
+- 依賴清單（version catalog）只由 PO 改，RD 要加依賴先回報。
 
 **AI 協作紀錄**：AI 提出、但被我推翻或修正的方案（NOTES 第 1 題素材）
 - AI 建議預先建好 18 個 type 列，避免畫面跳動。我指出要先抓到 detail 才知道有哪些 type，後來確認第一代實際只有 17 種，這個做法根本做不到（ADR 0002）。
@@ -34,5 +36,7 @@
 - `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認。
 
 **下一步**
-- 先 commit，再開始 Do：建立專案骨架（`:app` / `:domain` / `:data`、Hilt、Room、Retrofit、Compose）。
+- commit 本次的 spec、CLAUDE.md、agents。
+- Phase 0（PO 用 doer/judge）：骨架 `:app` / `:domain` / `:data`、version catalog、整個 `:domain` 與 D1。先評估 `android-project-template` skill 能不能用。
+- Phase 0 commit 後開兩個 worktree，啟動 RD-data、RD-app。
 - 估時：面談時講約 18.5h，範圍調整後約 17h。
