@@ -11,13 +11,16 @@ import io.github.jay41chen.pokedex.domain.repository.PokemonRepository
 import io.github.jay41chen.pokedex.domain.repository.SyncRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 
 class FakePokemonRepository : PokemonRepository {
     val catalog = MutableStateFlow<List<CatalogEntry>>(emptyList())
+    private val details = mutableMapOf<PokemonId, MutableStateFlow<PokemonDetail?>>()
 
     override fun observeCatalog(): Flow<List<CatalogEntry>> = catalog
-    override fun observeDetail(id: PokemonId): Flow<PokemonDetail?> = flowOf(null)
+
+    fun detail(id: PokemonId): MutableStateFlow<PokemonDetail?> = details.getOrPut(id) { MutableStateFlow(null) }
+
+    override fun observeDetail(id: PokemonId): Flow<PokemonDetail?> = detail(id)
 }
 
 class FakeCaptureRepository : CaptureRepository {
