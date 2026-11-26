@@ -24,6 +24,7 @@ import io.github.jay41chen.pokedex.domain.model.PokemonId
 import io.github.jay41chen.pokedex.domain.model.TypeName
 import io.github.jay41chen.pokedex.domain.model.TypeSection
 import io.github.jay41chen.pokedex.domain.usecase.groupByType
+import io.github.jay41chen.pokedex.ui.theme.PokedexTheme
 
 @Composable
 fun HomeScreen(
@@ -52,7 +53,7 @@ fun HomeScreen(
                 onRelease = { onIntent(HomeIntent.Release(it)) },
                 onPokemonClick = onPokemonClick,
             )
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary)
             CatalogContent(
                 catalog = state.catalog,
                 sections = state.sections,
@@ -97,30 +98,30 @@ private fun previewState(
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeLoadingPreview() = MaterialTheme {
+private fun HomeLoadingPreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Loading), {}, {})
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeEmptyOfflinePreview() = MaterialTheme {
+private fun HomeEmptyOfflinePreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Empty(offline = true)), {}, {})
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeEmptyErrorPreview() = MaterialTheme {
+private fun HomeEmptyErrorPreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Empty(offline = false)), {}, {})
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeReadyEmptyPocketPreview() = MaterialTheme {
+private fun HomeReadyEmptyPocketPreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Ready, sections = sampleSections), {}, {})
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HomeReadyWithPocketPreview() = MaterialTheme {
+private fun HomeReadyWithPocketPreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Ready, samplePocket, sampleSections), {}, {})
 }

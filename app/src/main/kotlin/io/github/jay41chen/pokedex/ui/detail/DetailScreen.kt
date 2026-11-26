@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,6 +39,7 @@ import io.github.jay41chen.pokedex.domain.model.PokemonId
 import io.github.jay41chen.pokedex.domain.model.Species
 import io.github.jay41chen.pokedex.domain.model.TypeName
 import io.github.jay41chen.pokedex.ui.component.PlaceholderPainter
+import io.github.jay41chen.pokedex.ui.theme.PokedexTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,13 +119,18 @@ private fun DetailContent(
             error = PlaceholderPainter,
             fallback = PlaceholderPainter,
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
+                .size(160.dp)
+                .align(Alignment.CenterHorizontally)
                 .clip(RoundedCornerShape(16.dp)),
         )
-        Text(text = card.name, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = card.name,
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             detail.types.forEach { TypeChip(it) }
@@ -139,8 +144,8 @@ private fun DetailContent(
 private fun TypeChip(type: TypeName) {
     Surface(
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(
             text = type.value,
@@ -158,40 +163,47 @@ private fun EvolvesFromSection(
     val evolvesFrom = species?.evolvesFrom
     // 已有 species 但沒有前一階段：整個區塊（含標題）不顯示
     if (species != null && evolvesFrom == null) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val title: @Composable () -> Unit = {
         Text(
             text = stringResource(R.string.detail_evolves_from),
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (evolvesFrom == null) {
+    }
+    if (evolvesFrom == null) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            title()
             Text(
                 text = stringResource(R.string.detail_loading_placeholder),
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+    } else {
+        // 圖還沒抓到（imageUrl == null）的前一階段不可點，沒有 detail 可看
+        val rowModifier = if (evolvesFrom.imageUrl != null) {
+            Modifier.clickable { onPokemonClick(evolvesFrom.id) }
         } else {
-            // 圖還沒抓到（imageUrl == null）的前一階段不可點，沒有 detail 可看
-            val rowModifier = if (evolvesFrom.imageUrl != null) {
-                Modifier.clickable { onPokemonClick(evolvesFrom.id) }
-            } else {
-                Modifier
-            }
-            Row(
-                modifier = rowModifier,
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                AsyncImage(
-                    model = evolvesFrom.imageUrl,
-                    contentDescription = evolvesFrom.name,
-                    placeholder = PlaceholderPainter,
-                    error = PlaceholderPainter,
-                    fallback = PlaceholderPainter,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
+            Modifier
+        }
+        Row(
+            modifier = rowModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                title()
                 Text(text = evolvesFrom.name, style = MaterialTheme.typography.bodyLarge)
             }
+            AsyncImage(
+                model = evolvesFrom.imageUrl,
+                contentDescription = evolvesFrom.name,
+                placeholder = PlaceholderPainter,
+                error = PlaceholderPainter,
+                fallback = PlaceholderPainter,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+            )
         }
     }
 }
@@ -241,35 +253,35 @@ private val NoImage = CharmeleonClickable.copy(
 @Preview(showBackground = true)
 @Composable
 private fun DetailLoadingPreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Loading, onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Loading, onBack = {}, onPokemonClick = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun DetailSpeciesNullPreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Content(BulbasaurLoading), onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Content(BulbasaurLoading), onBack = {}, onPokemonClick = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun DetailEvolvesFromClickablePreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Content(CharmeleonClickable), onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Content(CharmeleonClickable), onBack = {}, onPokemonClick = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun DetailEvolvesFromNotClickablePreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Content(CharmeleonNotClickable), onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Content(CharmeleonNotClickable), onBack = {}, onPokemonClick = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun DetailNoEvolutionEmptyDescriptionPreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Content(PikachuNoEvolution), onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Content(PikachuNoEvolution), onBack = {}, onPokemonClick = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun DetailNoImagePreview() {
-    MaterialTheme { DetailScreen(DetailUiState.Content(NoImage), onBack = {}, onPokemonClick = {}) }
+    PokedexTheme { DetailScreen(DetailUiState.Content(NoImage), onBack = {}, onPokemonClick = {}) }
 }
