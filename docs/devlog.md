@@ -18,6 +18,16 @@
   - Judge 首審：通過，但指出 spec 契約本身的風險：`results` 是 `SharedFlow(replay = 0)`，冷啟動離線時結果在 HomeViewModel 建立前就發出而遺失，空畫面卡在 `Loading`。
   - 契約修訂：sync 結果改成狀態 `status: StateFlow<SyncStatus>`（Idle／Running／Finished(round, result)），「顯示過了沒」留在 VM（ADR 0006 修訂）。
   - Judge 複審：需修正（只有文件），補上「HomeViewModel 晚於 onStart 建立」的前提與手動驗證、旋轉時不退回 `Loading`、`lastShownRound` 的推進規則、check-and-set 要原子。
+- Phase 0 完成（`224e580`），開 worktree：`../pokedex-data`（`data`）、`../pokedex-app`（`app`），session 名稱 `po`／`rd-data`／`rd-app`。
+- RD-data mapper 階段：18:43–18:48（Do 3 分鐘、Judge 2 分鐘），待 commit。
+  - AI 產出：3 個 DTO、5 個 Room entity（尚無 DAO）、雙向 mapper、`MappersTest` 12 個（含 M1–M4，用 PokéAPI 真實 fixture）。
+  - Judge：通過；3 個新 mutation 有 2 個漏網（151 邊界 `<=` 改 `<`、對照表 32／122 未測、`idFromUrl` 測試分不出取法），低嚴重度。
+  - 修正輪 18:59–19:01：人決定 4 項全補；補 32／122、151／152 邊界、`/api/2/` URL 三組斷言，測試 14 個全過，複審通過。RD 自己在交給 doer 前發現原本的 `/api/v2/` 例子測不出取錯段而改正。
+- RD-app HomeViewModel 階段：18:44–18:48（Do 2 分鐘、Judge 1.5 分鐘），待 commit。
+  - AI 產出：`HomeContract`（照 spec 第 3 輪）、`HomeViewModel`（單一 private 狀態 + `update {}`）、手寫 fake repository、V1–V4。
+  - Judge：通過；漏網 mutation「Success 不清掉舊 message」，低嚴重度 3 項（該行為無測試、fake 有死碼、MainDispatcherRule 隱含依賴 Unconfined）。
+  - 人決定：`@HiltViewModel` 延到 Hilt 整合階段；`Finished(Success)` 清掉尚未顯示的舊 message（spec 未定義，PO 已補進 spec 第 3 輪與 ADR 0006，新增 V5）。
+  - 修正輪 18:58–19:01：補 V5（Success 清掉未顯示的舊 message）、刪 fake 死碼、MainDispatcherRule 加 KDoc；測試 5 個全過，複審通過，剩一個未用 import。
 
 **決定**
 - [0001](design/0001-module-split-and-layering.md) Module 切法與分層

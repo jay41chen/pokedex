@@ -303,7 +303,7 @@ class MainViewModel @Inject constructor(private val requestSync: RequestSync) : 
 | 決定 | 理由 | 考慮過的替代 |
 | --- | --- | --- |
 | 三條資料流在 VM 合併 | `Loading`／`Empty` 是畫面概念，不屬於 domain；用 VM 單元測試守 | `ObserveHome` use case：只是把 combine 搬進 domain |
-| Snackbar 訊息放進 state，UI 顯示後回報 | 旋轉、背景都不會掉或重複；測試只需斷言 state，不需 Turbine。VM 記 `lastShownRound`：收到 round 比它大的 `Finished` 時立即推進到該 round（`Success` 也推進），不是 `Success` 才產生 message；「顯示過了沒」是畫面的事，留在 VM。旋轉會觸發新的一輪，離線時 Snackbar 會再出現一次（那一輪確實又是離線），接受 | `SharedFlow(replay=0)` 會掉；`replay=1` 會重播；`Channel` 取出後被取消會掉 |
+| Snackbar 訊息放進 state，UI 顯示後回報 | 旋轉、背景都不會掉或重複；測試只需斷言 state，不需 Turbine。VM 記 `lastShownRound`：收到 round 比它大的 `Finished` 時立即推進到該 round（`Success` 也推進），不是 `Success` 才產生 message；較新一輪的結果取代尚未顯示的舊 message，`Success` 則清成 `null`；「顯示過了沒」是畫面的事，留在 VM。旋轉會觸發新的一輪，離線時 Snackbar 會再出現一次（那一輪確實又是離線），接受 | `SharedFlow(replay=0)` 會掉；`replay=1` 會重播；`Channel` 取出後被取消會掉 |
 | Evolves from 前一階段未有 detail（`imageUrl == null`）時不可點 | 詳細頁只會收到已有 detail 的 id，`Loading` 不會卡住 | 可點＋詳細頁處理「還沒資料」：多一個狀態和等待規則 |
 | sync 由 Activity 範圍的 `MainViewModel` 觸發 | 分層規則沒有例外；前景事件不屬於任何畫面 | Activity 直接注入 use case：繞過 VM；用 `HomeViewModel`：範圍不同會建出第二個實例；`ProcessLifecycleOwner`：新依賴 |
 
@@ -437,6 +437,7 @@ fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的等待；�
 | ★V1 | VM | JVM fake | catalog 空、status `Finished(1, Offline)` | `Empty(offline = true)`，`message == Offline` |
 | V2 | VM | JVM fake | status `Finished(1, Offline)` 產生 message 後送出 `MessageShown`，再讓 catalog 發一次新值 | `message == null` |
 | V3 | VM | JVM fake | VM 建立時 status 已是 `Finished(1, Offline)`（VM 晚於該輪結束才建立） | `message == Offline`，不會漏 |
+| V5 | VM | JVM fake | 依序 `Finished(1, Offline)`、`Finished(2, Success)`，中間沒送 `MessageShown` | `message == null`，`Empty(offline = false)` |
 | V4 | VM | JVM fake | catalog 空；status 依序 `Running` → `Finished(1, Offline)` → `Running` | `Loading` → `Empty(offline = true)` → 仍是 `Empty(offline = true)` |
 
 DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。

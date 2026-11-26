@@ -17,7 +17,7 @@ A round can lose the network, hit server errors, or receive data it cannot use. 
 - The result is chosen by precedence: `Offline` > `PartialFailure` > `Success`.
 - `SyncRepository.status` is a `StateFlow<SyncStatus>`: `Idle`, `Running`, or `Finished(round, result)`. A sync round is a process, so it is exposed as state: a collector that starts at any time reads the current value, and nothing depends on who subscribes first.
 - `requestSync()` sets `Running` before it returns. `HomeViewModel` is created by the first composition, which runs after `onResume` when `setContent` is called in `onCreate`, so it is created after `onStart` and cannot read the previous Activity's result as current. This premise comes from the Android lifecycle, not from our code, and is checked manually.
-- `HomeViewModel` keeps `lastShownRound`. On a `Finished` round newer than it, the ViewModel advances `lastShownRound` to that round (also for `Success`); if the result is not `Success`, it becomes the message. Whether a message was shown is presentation state, so it stays in the ViewModel.
+- `HomeViewModel` keeps `lastShownRound`. On a `Finished` round newer than it, the ViewModel advances `lastShownRound` to that round (also for `Success`); if the result is not `Success`, it becomes the message. A newer round replaces a message that has not been shown yet, and `Success` clears it, so a stale "offline" message never appears after a successful round. Whether a message was shown is presentation state, so it stays in the ViewModel.
 - `HomeUiState.message: UserMessage?` holds the Snackbar. The UI shows it, then sends `HomeIntent.MessageShown`, which clears it.
 
 ```mermaid
