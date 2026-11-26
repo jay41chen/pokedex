@@ -48,6 +48,7 @@
 - rebase 前工作樹必須乾淨。有不屬於這次 commit 的改動就停下回報，不要自行 stash、reset 或 checkout。
 - 使用者要求推送時：`git fetch origin`、`git rebase origin/main`、`git push origin HEAD:main`。
 - 只 `git add` 自己範圍內的檔案。
+- 給使用者的 commit 指令第一行一定是 `cd <自己的 worktree 絕對路徑>`（PO 是主資料夾），避免貼到別的 terminal 而 commit 到錯的分支。
 - 新 worktree 不會帶未追蹤檔案：開好後從主資料夾複製 `CLAUDE.local.md`、`local.properties`。
 - 共用資源同時只跑一套：模擬器同時只開一個；兩個 Gradle build 同時跑會吃記憶體，需要時排隊。
 
