@@ -58,4 +58,5 @@
 - Judge 首審跑一次完整基準加 2–3 個新 mutation，只跑相關模組；複審只驗上一輪的問題；只改文件不跑測試，文件最多審一輪。高、中嚴重度才擋，低嚴重度交給使用者決定。
   - `:domain`：`./gradlew :domain:test --rerun-tasks`
   - `:data`、`:app`：`./gradlew :<module>:testDebugUnitTest --rerun-tasks`
+- 有畫面改動的階段，Judge 除了照 spec 狀態表審，還要把截圖或 Preview 和 mock 逐項對照版面（位置、對齊、尺寸、顏色），並列出對照結果；只照狀態表審會漏掉版面。
 - instrumented 測試（B1–B5，`./gradlew :data:connectedDebugAndroidTest`）只在 DAO 或 SQL 有改動時跑，跑之前要先開模擬器（ADR 0007）；其他階段跑單元測試和建置。

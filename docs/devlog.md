@@ -50,6 +50,25 @@
   - Judge 首審：中 1 項，回傳給呼叫端的最後一個 response 沒被 close 的測試守著，已補；低 4 項已修（`Retry-After` 5／6 邊界、第 3 次等待範圍、4 次 IOException 後重新丟出、`>= 500` 改 `500..599`）；抖動沒注入所以「完全沒抖動」抓不到，人決定不做。複審通過。
   - 已知代價：Retrofit 取消不會中斷執行緒，正在 sleep 的 worker 最長約 6 秒才停。
   - spec 同步（人同意）：取消檢查改成「每次嘗試前」、`Sleeper` 標 `internal`、`Retry-After` 缺少／非整數／負數走一般退避。
+- RD-app 詳細頁 UI 階段：20:26–20:33（Do 2 分鐘、Judge 5 分鐘，其中等 Gradle 排隊時先做讀碼審查）（`3dc1e90`）。
+  - 人決定：Navigation 與 MainActivity 接線延到 Hilt 整合（NavHost 要向 Hilt 取 VM、用 assisted injection 傳 route id，`:data` binding 進來前無法編譯）。
+  - AI 產出：無狀態 `DetailScreen`（6 個 Preview）、`ui/navigation/Routes.kt`（只定義）、灰色佔位 painter 抽成 `component/ImagePlaceholder.kt` 共用、返回鍵用自己畫的 vector（不加 material-icons 依賴）、strings 3 個。
+  - Judge：通過；spec 狀態表 10 列逐列對上。3 個 mutation（`imageUrl == null` 仍可點、`species == null` 當成沒有前一階段、空描述仍顯示）都能編譯，只靠 Preview 與人工檢查擋，沒有 UI 測試；低嚴重度 3 項交給人。
+- RD-data sync 階段：20:27–21:04（Do 5 分鐘、首審約 10 分鐘、修正與複審約 8 分鐘，中間照 PO 排隊讓出 Gradle 與模擬器）（`2cb099a`）。
+  - AI 產出：`PokeApi`、`PokeApiUrls`、`ConnectivityChecker` 與 `PermanentFailureReporter`（只有介面，實作在 Hilt 階段）、`RetryableHttp`（retry 與 sync 共用的重試碼判斷）、`DefaultSyncRepository`（CAS 迴圈切到 `Running`，round 從前一個 `Finished` 取；5 個 worker 從 Channel 取工作，detail 先、species 後）。`:data` 測試 45 個全過（Mappers 14、Retry 13、Sync 18）。
+  - 人決定：DB 寫入失敗不取消整輪、結果 `PartialFailure`（人問「取消其他 worker 損失太大」後改的）；reporter 失敗只在呼叫點 catch、不影響結果；不加整輪 `withTimeout`，Hilt 階段改設 OkHttp `callTimeout`（是否涵蓋 interceptor 的重試等待 [待確認]，屆時用測試驗）；list 永久性失敗時本輪為 `Success`，列入 backlog。
+  - Judge 首審：中 1 項，`pendingIds`／`isOnline`／reporter 丟出未預期例外時 status 永遠卡在 `Running`、之後不再 sync，用暫時測試重現；外層 try/catch 兜底（結果 `PartialFailure`）加 reporter 呼叫點 catch 修好。低 3 項已修（spec 明寫但沒測試守的 4 項、round 欄位改成從狀態取、重試碼判斷抽共用）。複審通過，低 3 項交給人（依賴自己丟 `CancellationException` 或 `Error` 時仍會卡住、reporter 例外只測 detail 路徑、spec 沒列的例外一律當暫時性）。
+  - 第二次修正（21:00–21:04）：人決定照 spec「status 不可停在 Running」修複審低 1，launch 改成 try/catch/finally，結束時一律寫回 `Finished`；新增 `pendingIds` 丟 `CancellationException`、丟 `Error` 2 個測試，改回舊寫法時兩個都失敗（停在 `Running`）。測試 14／13／20 全過。複審通過，低 1 項：一處推論註解沒標 [待確認]，交給人。
+  - 意外：doer 第一次建目錄時 `cd` 失敗，把測試檔寫進主資料夾，自己搬回 worktree；PO 用 `git status` 確認主資料夾沒有殘留。
+- RD-app 外觀對齊 mock 階段：20:46–20:55（Do 4 分鐘、Judge 3 分鐘，含模擬器截圖對照 mock）（`8347d3e`）。
+  - 起因：詳細頁 UI 的 Judge 只照 spec 狀態表審，沒有對照 mock 版面，漏掉置中與小圖位置；RD-app 比對 mock 截圖時才發現，併進這一階段。mock 第 3 頁用 macOS PDFKit（swift 腳本）轉成圖片，不需要 poppler。
+  - AI 產出：`PokedexTheme`（主色深紫、不用 dynamic color、不做深色模式；狀態列畫紫色 scrim 並 `consumeWindowInsets`）、MainActivity 加 `enableEdgeToEdge`、卡片去灰底、分隔線改紫色、詳細頁大圖 160dp 置中、名稱與 chips 置中、Evolves from 改成左邊文字右邊小圖。標題與名稱間 4dp 是 doer 自選，標 [待確認]。
+  - Judge：通過；對照 mock 9 項全符合；MainActivity 實機可啟動。3 個 mutation（誤用 dynamic color、可點條件永遠成立、狀態列圖示改深色）都能編譯，沒有自動測試擋，其中「可點條件永遠成立」連截圖都看不出來。低 3 項交給人。
+  - 人決定：低 3 項都不修（placeholder 沒鋪滿接 NavHost 後會被蓋掉、scrim 寫進 NOTES、4dp 接受）；「沒有圖就不能點」抽成純函式補 JVM 測試，由 RD-app 下一個小階段做。
+- RD-app「Evolves from 可點判斷」小階段：21:03–21:09（Do 1 分鐘、Judge 4 分鐘）（`cc276a3`）。
+  - 起因：詳細頁 UI 與外觀兩輪 Judge 都指出「可點條件永遠成立」只有人工能擋，連截圖都看不出來；人決定補測試。
+  - AI 產出：`evolvesFromClickTarget(PokemonCard): PokemonId?`（internal 純函式），`EvolvesFromSection` 改用它決定能不能點；`EvolvesFromClickTargetTest` 2 個。
+  - Judge：通過；`:app` 單元測試 9 個全過；3 個 mutation（條件永遠成立、永遠回 null、回錯 id）都被抓到。低 1 項：Composable 怎麼接這個函式仍沒有自動測試，要 Compose UI test，當 NOTES 素材。
 - 意外：RD-data 的 commit 指令被貼到主資料夾，產生訊息是 data、內容是 domain 的錯誤 commit；RD-app 發現後通知 PO，在 main 上 rebase 移除，未推上遠端。CLAUDE.md 新增規則：commit 指令第一行必須 `cd` 到自己的 worktree（`9ba20d5`）。
 
 **決定**
@@ -81,11 +100,12 @@
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
 - `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認（mapper 目前換成空白，標待確認）。
 - 要寫進 NOTES：系統字級 1.5 倍時，96dp 卡片上較長的名字會被截斷（人決定不修）。
+- 要寫進 NOTES：`PokedexTheme` 同時負責狀態列 scrim 版面，之後有沉浸式畫面要先拆開；詳細頁顯示規則與外觀沒有 UI 測試，靠 Preview、截圖與人工檢查。
 - 首頁 UI 延後的低嚴重度項目，以及卡片底色、狀態列圖示顏色、紫色分隔線，併到 theme 階段；寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
 
 **下一步**
-- RD-data：sync（★S1、S2）。
-- RD-app：詳細頁 UI 與 Navigation，先接 fake repo → Hilt 整合與手動驗證。
-- 檢查點二（第 3 天結束）：★ 10 個；已過 D1、M1、V1、B1–B4、I1，剩 S1、S2。
+- RD-data：repository＋`:data` Hilt binding（RD-app 的整合在等這個）。
+- RD-app：等 `:data` Hilt binding 進 main 後做 Hilt＋Navigation 整合與手動驗證。Navigation 延後是因為 NavHost 要向 Hilt 取 VM、用 assisted injection 傳 route id，binding 沒進來前無法編譯（人決定）。
+- 檢查點二（第 3 天結束）：★ 10 個全過（S1、S2 在 `2cb099a`）。
 - 合併後的 main（`69b3e97`）：`assembleDebug` 與三個 module 的 JVM 測試 26 個全過（17s，`--rerun-tasks`）。
 - 估時：面談時講約 18.5h，範圍調整後約 17h。

@@ -131,7 +131,7 @@ email Q3（資料是否靜態）會議未明確答覆；採靜態假設（補缺
 | --- | --- |
 | `species == null` | Evolves from 與描述顯示佔位 |
 | `species.evolvesFrom == null` | 隱藏 Evolves from 區塊 |
-| `evolvesFrom.imageUrl == null` | 只顯示名稱，不可點 |
+| `evolvesFrom.imageUrl == null` | 佔位小圖加名稱，不可點 |
 | `description == ""` | 隱藏描述 |
 | `imageUrl == null` | 佔位圖 |
 
@@ -368,6 +368,10 @@ suspend fun pendingIds(): PendingWork   // 「哪些要抓」的唯一判斷點
 | 沒有網路 | `IOException` 且 `isOnline()` 為 false | 取消本輪剩下的請求，結果 `Offline` |
 | 暫時性 | 重試用完仍是 `IOException`（有網路）、5xx、429 | 記下來，繼續其他 id，結果 `PartialFailure` |
 | 永久性 | 其他 4xx、`SerializationException`、缺必要欄位 | 記 log，從 OkHttp Cache 移除該 URL，繼續；不影響結果 |
+| DB 寫入失敗 | `SyncStore.writeXxx` 丟例外 | 記下來，繼續其他 id，不取消本輪；結果 `PartialFailure`；沒寫入的 id 留在 `pendingIds()`，下次回前景重抓 |
+| 其他未列出的例外 | 單一 id 處理時丟出上面沒列的例外（例如 NPE、`IllegalStateException`） | 視為暫時性：記 log，繼續其他 id，結果 `PartialFailure` |
+| 整輪層級的例外 | `pendingIds()`、`isOnline()` 等丟出未預期例外 | 記 log，本輪結束，結果 `PartialFailure`；`status` 不可停在 `Running` |
+| 回報失敗 | `PermanentFailureReporter` 丟例外 | 記 log，不影響結果，繼續 |
 
 取消會經 Retrofit suspend 函式傳到 OkHttp call。process 被 kill 不需額外處理，transaction 保證不留半筆資料。
 
@@ -466,6 +470,8 @@ DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Ju
 | 永久性失敗提示使用者回報 | 排除 | MVP 只記 log；正式產品改接自動回報（Crashlytics non-fatal） |
 | 每日更新（B） | backlog | 排在 Bonus 後；切入點 `pendingIds()` 已留。屆時 `writeDetail` 要在同一個 transaction 先刪該 id 的舊 type 再寫（補缺語意下只寫一次，目前不刪） |
 | 停在 app 內時網路恢復立刻補抓 | backlog | 需監聽網路或 WorkManager |
+| 點不可點的 Evolves from 時提示「資料還在載入，稍後再試」 | backlog | 只改 UI（Snackbar），不動 VM 與契約；前一階段的 detail 抓到後 Flow 更新會自動變成可點。做的時候要改上面的狀態表，Judge mutation 改成「點了不導頁、跳 Snackbar」 |
+| list 永久性失敗時提示使用者 | backlog | 目前照「永久性失敗不影響結果」，本輪為 `Success`，首頁空白且沒有提示；PokéAPI 靜態託管、URL 固定，機率低。要提示需在 `SyncResult` 加值（改契約） |
 
 ## 待實測
 
