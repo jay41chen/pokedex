@@ -28,7 +28,7 @@ internal class RetryInterceptor(private val sleeper: Sleeper) : Interceptor {
             }
 
             val code = response.code
-            val retryable = code in 500..599 || code == 429
+            val retryable = isRetryableHttpCode(code)
             if (!retryable || attempt >= MAX_ATTEMPTS) return response
 
             val waitMillis = if (code == 429) {
