@@ -2,13 +2,17 @@
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
 
-**時間**：當天沒有記錄起訖時間。從下一次 Do/Judge 開始記錄。
+**時間**：面談與契約討論沒有記錄起訖時間。Phase 0a：18:04–18:09（Do 約 3 分鐘、Judge 約 1.5 分鐘）。
 
 **做了什麼**
 - 第一次技術面談，議定交付範圍，結論寫在 ADR 0002、0003。
 - 和 AI 逐輪討論 module 之間的契約，共五輪，全部凍結，寫在內部的 tech spec。
 - 建立 repo，加入 `.gitignore`、`NOTES.md` 骨架、ADR 0001–0007；ADR 0001、0003–0006 補 mermaid 圖（docs: add ADRs 0001-0007 with diagrams, devlog, and NOTES skeleton `1af8b72`）。
-- tech spec 搬進 repo 成為 `docs/spec.md`；新增專案 `CLAUDE.md`（PO＋RD-data＋RD-app 分工）與 `.claude/agents/doer.md`、`judge.md`（待 commit）。
+- tech spec 搬進 repo 成為 `docs/spec.md`；新增專案 `CLAUDE.md`（PO＋RD-data＋RD-app 分工）與 `.claude/agents/doer.md`、`judge.md`（docs: move tech spec into repo, add CLAUDE.md and doer/judge agents `59ba297`）。
+- Phase 0a：三 module Gradle 骨架（`:app` / `:domain` / `:data`），version catalog 放齊已同意套件（待 commit）。
+  - AI 產出：build 設定、wrapper、`PokedexApp` 與空的 `MainActivity`；Room 2.8.5、Coil 3.6.3 由 AI 查最新穩定版。
+  - Judge：通過，3 個低嚴重度：`:domain` 的 coroutines 應用 `api`（併入 0b）、多了未回報的 foojay settings plugin、只有佔位 theme（交給 RD-app）。
+  - 編譯時間：首次 `assembleDebug` 1m12s（含下載依賴），有快取 0.9s，`--rerun-tasks` 13s。
 
 **決定**
 - [0001](design/0001-module-split-and-layering.md) Module 切法與分層
@@ -30,6 +34,7 @@
 - AI 建議引入 Robolectric 和 MockWebServer。我要求評估引入套件的成本，最後兩個都不引入（ADR 0007）。
 - AI 建議拿掉 `PartialFailure`。我決定保留（ADR 0006）。
 - AI 建議讓 interceptor 也注入網路狀態檢查。我指出耦合太高，最後只在 sync 裡檢查網路（ADR 0004）。
+- AI 的專案骨架產生器（template）輸出 hexagonal 架構：feature module、`AppResult` 包裝、Turbine 與 MockK。評估後不套用，只取版本組合與 KSP #2729 的繞法；理由是只有 2 個畫面、資料以本機 DB 為準（讀取不會有網路錯誤）、測試不引入額外套件（ADR 0001、0007）。
 
 **未決・卡住**
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
