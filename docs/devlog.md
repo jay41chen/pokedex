@@ -2,21 +2,34 @@
 
 ## 2026-11-27（repository 與 `:data` Hilt binding）
 
-**時間**：RD-data R 段 09:35–09:47（Do 寫檔約 3 分鐘），修正輪 09:50–09:57。H 段 10:1x 開始。
+**時間**：RD-data R 段 09:35–09:47（Do 寫檔約 3 分鐘），修正輪 09:50–09:57。RD-data H 段 10:1x–10:2x，H2b 修正 10:24–10:27。
 
 **做了什麼**
-- RD-data R 段：repository 與讀取用的 DAO（feat(data): add Pokemon and Capture repositories with R1-R7 tests `af8a02c`，在 `data` 分支，尚未進 main）。
+- RD-data R 段：repository 與讀取用的 DAO（feat(data): add Pokemon and Capture repositories with R1-R7 tests `d0efd71`；rebase 前為 `af8a02c`）。
   - AI 產出：`PokemonDao`（`@Transaction` 加 `@Relation` 一次讀完 types，detail 與 types 不會分兩次送出）、`PokemonRepositoryImpl`、`CaptureRepositoryImpl`（UUID 加 `TimeSource`）、`PokedexDatabase.pokemonDao()`；schema 沒變。新增 R1–R4 instrumented 測試。
   - Gradle 耗時（舊 MBA）：doer 的 unit 加 androidTest 編譯 26 秒、connected 26 秒；Judge 的 unit（`--rerun-tasks`）21 秒、connected 12 秒、每個 mutation 8–19 秒。
   - Judge：通過。4 個 mutation 都被抓到：catalog 的 JOIN 改 LEFT JOIN（R1）、species 的 LEFT JOIN 改 JOIN（R2）、evolves-from 接錯欄位（R3）、capture id 改用 pokemon id（R4）。低嚴重度 3 項：evolves-from 那隻不在表裡時回 null 沒標 [待確認]、catalog 的 `ORDER BY p.id` 沒註明、三個行為沒有測試鎖住。
   - 人決定：低嚴重度 3 項全補（PO 原本建議只補 slot 排序）。
 - RD-data R 段修正輪：新增 R5–R7，兩處補 [待確認] 註解，正式邏輯沒改；connected 13/13 通過（doer `--rerun-tasks` 16 秒，Judge 每次 6–10 秒）。
   - Judge：複審通過。mapper 拿掉 slot 排序時 R5 抓不到（DB 依主鍵讀回已經排好），由 `MappersTest` 抓到，低嚴重度。`PokemonRepositoryImpl` 是新檔，無法用 diff 證明只加了註解，Judge 逐行讀過確認邏輯一致。
-- PO：spec 測試清單加入 R1–R7，不標 ★（待 commit）。
+- PO：spec 測試清單加入 R1–R7，不標 ★（docs: list R1-R7 repository tests in spec, log R stage and time breakdown `b2ef8d3`）。
+- RD-data H 段：`:data` 的 Hilt binding、網路、reporter、logger（feat(data): add Hilt DataModule, connectivity, cache-evicting reporter and logging `088c5f2`，含 H2b 兩輪修正）。
+  - AI 產出：`DataModule`（`internal object`，全部 `@Provides @Singleton`；Hilt 接受 `internal`，實作類別不用改成 public）、`AndroidConnectivityChecker`、`CacheEvictingReporter`、`DataLogger`；sync 的 5 個 TODO 換成 log，清掉 [待確認] 與多餘的一行；`data/build.gradle.kts` 加 `dagger.fullBindingGraphValidation=ERROR`、開 buildConfig（debug 才開 OkHttp log），沒加依賴。新增 H1、H2；unit 50 個全過，`:app:assembleDebug` 成功，`:app` 的 Hilt 元件已收進 `DataModule`（Judge 看產生的程式碼確認）。
+  - Gradle 耗時：doer 的 unit 加 app 編譯 34 秒；Judge 基準 24 秒，H1 連跑 3 次各 6–9 秒，mutation 各 3–19 秒。
+  - Judge：通過。retry 拿掉「每次嘗試前檢查取消」被 H1 抓到（連跑 3 次穩定）。兩個 mutation 沒抓到，都是規劃時憑印象假設函式庫行為：
+    - reporter 拿掉 try/catch：H2b 的情境（OkHttp `Cache.delete()` 後呼叫 `urls()`）以為會丟例外，實際上 `delete()` 會先 close，之後 `urls()` 回傳空的，情境沒走到 catch。
+    - 拿掉 `TimeSource` 的 provider：`fullBindingGraphValidation` 實際只抓重複綁定與 scope 錯誤，不抓缺少的 provider（單獨驗 module 時，缺的可能由別的 module 提供）。Judge 實測：刪 provider 時 ksp、compile、`:app:assembleDebug` 全過；多綁一次則 ksp 報 `[Dagger/DuplicateBindings]`。參數保留，防 `:app` 重複綁定。
+  - 人決定：修 H2b；不加 `@EntryPoint` 提早驗缺 provider，等 RD-app 加 `@HiltViewModel` 時由 `:app` 編譯自然驗到（Judge 已人工核對依賴圖完整）。
+- RD-data H2b 修正：cache 目錄改指向普通檔案（實測丟 `FileNotFoundException`），並斷言有記到 `"Cache eviction failed"` log；正式程式沒改。doer unit 16 秒；Judge 基準 10 秒。複審通過：拿掉 try/catch、catch 裡不記 log 兩個 mutation 都被抓到。低 1 項（H2b 沒呼叫 `cache.close()`、H2a 有，寫法不一致），RD 建議不修；人決定修（怕之後改寫法時漏關），測試結尾補 `cache.close()`，只改測試檔。
+- RD-data H2b 補 close：10:28–10:31。H2b 改成 try/finally，finally 裡 `runCatching { cache.close() }`。doer unit 9 秒；Judge 基準 8 秒、mutation 7 秒。複審通過，沒有發現；拿掉 reporter 的 try/catch 仍被 H2b 抓到，證明 `runCatching` 只包住 close。
+  - 意外：doer 第一次 Edit 因沒先 Read 而失敗，接著跑的 Gradle 用的是舊檔；doer 自己發現、重改重跑，並如實回報。
 
 **決定**
 - R1–R7 列進 spec 測試清單，不標 ★。
 - DI 維持原分工：`:data` 提供自己的 Hilt binding，實作類別保持 `internal`（人問過是否該由 RD-app 做，討論後維持）。
+- 缺 provider 不另加 `@EntryPoint` 提早驗，整合時由 `:app` 編譯驗到。
+
+**AI 協作紀錄**（NOTES 第 1 題素材）：這兩筆不是人推翻 AI 的提議，而是 AI 規劃時憑印象假設函式庫行為、沒有先驗證，由 Judge 的 mutation 抓出：`fullBindingGraphValidation` 的作用、H2b 的例外情境（細節見上方 H 段）。
 
 **未決・卡住**
 - 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
@@ -25,8 +38,9 @@
 - 寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
 
 **下一步**
-- RD-data H 段進行中：`DataModule`（Hilt）、`AndroidConnectivityChecker`、`CacheEvictingReporter`、`DataLogger`、sync 的 TODO 換成 log、註解清理；`data/build.gradle.kts` 加 `dagger.fullBindingGraphValidation` 並開 buildConfig（debug 才開 OkHttp log），不加新依賴。
-- H 段進 main 後，通知 RD-app 做 Hilt＋Navigation 整合，再做手動驗證（spec「手動驗證」與「待實測」）。
+- RD-data 原定的 `:data` 階段全部完成（`088c5f2` 已進 main）。
+- RD-app：已通知做 Hilt＋Navigation 整合，範圍先列給人、放行後動工；加 `@HiltViewModel` 後若出現 MissingBinding，轉給 RD-data 修，不在 `:app` 補綁。
+- 整合後做手動驗證（spec「手動驗證」與「待實測」）：kill 後續抓、飛航模式、cache eviction、key 錨定、`\f`、連線洩漏、寶貝球觸控範圍；模擬器由 PO 排隊。
 - PO：README（整合完、app 能跑之後）、NOTES（第 6 題用「時間分配」表，補上整合與驗證的實際時間）。
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
