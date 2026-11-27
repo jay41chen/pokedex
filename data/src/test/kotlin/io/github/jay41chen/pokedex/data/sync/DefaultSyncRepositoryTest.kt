@@ -1,6 +1,7 @@
 @file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 package io.github.jay41chen.pokedex.data.sync
 
+import io.github.jay41chen.pokedex.data.logging.DataLogger
 import io.github.jay41chen.pokedex.data.remote.PokeApiUrls
 import io.github.jay41chen.pokedex.data.remote.dto.PokemonListDto
 import io.github.jay41chen.pokedex.domain.model.SyncResult
@@ -32,7 +33,7 @@ class DefaultSyncRepositoryTest {
         val store = FakeSyncStore()
         val connectivity = FakeConnectivity()
         val reporter = FakeReporter()
-        val repo = DefaultSyncRepository(api, store, connectivity, reporter, scope)
+        val repo = DefaultSyncRepository(api, store, connectivity, reporter, scope, DataLogger { _, _ -> })
     }
 
     private val ids = (1..151).toList()
@@ -320,7 +321,7 @@ class DefaultSyncRepositoryTest {
                 val gate = CompletableDeferred<Unit>()
                 api.listGate = gate
                 api.listResult = { PokemonListDto(emptyList()) }
-                val repo = DefaultSyncRepository(api, FakeSyncStore(), FakeConnectivity(), FakeReporter(), scope)
+                val repo = DefaultSyncRepository(api, FakeSyncStore(), FakeConnectivity(), FakeReporter(), scope, DataLogger { _, _ -> })
 
                 val start = CountDownLatch(1)
                 val threads = List(8) {

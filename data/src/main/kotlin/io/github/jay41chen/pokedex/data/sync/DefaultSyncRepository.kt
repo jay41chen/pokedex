@@ -1,5 +1,6 @@
 package io.github.jay41chen.pokedex.data.sync
 
+import io.github.jay41chen.pokedex.data.logging.DataLogger
 import io.github.jay41chen.pokedex.data.mapper.InvalidDataException
 import io.github.jay41chen.pokedex.data.mapper.toEntities
 import io.github.jay41chen.pokedex.data.mapper.toEntity
@@ -29,6 +30,7 @@ internal class DefaultSyncRepository(
     private val connectivity: ConnectivityChecker,
     private val reporter: PermanentFailureReporter,
     private val scope: CoroutineScope,
+    private val logger: DataLogger,
 ) : SyncRepository {
 
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
@@ -54,7 +56,6 @@ internal class DefaultSyncRepository(
         scope.launch {
             // The finally block guarantees status is written back to Finished however the block ends
             // (including cancellation and Error), per spec round 4b: status must never stay in Running.
-            // If the scope is really cancelled (process ending), the write-back is harmless.
             var result: SyncResult = SyncResult.PartialFailure
             try {
                 result = runRound()
@@ -63,7 +64,7 @@ internal class DefaultSyncRepository(
             } catch (e: Exception) {
                 // Unexpected exceptions (pendingIds, isOnline, reporter, ...) must not leave status stuck
                 // in Running. Missing data stays in pendingIds and is fetched on the next foreground.
-                // TODO: inject a logger in the Hilt stage
+                logger.warn("Sync round failed unexpectedly", e)
             } finally {
                 _status.value = SyncStatus.Finished(previousRound + 1, result)
             }
@@ -114,7 +115,7 @@ internal class DefaultSyncRepository(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // TODO: inject a logger in the Hilt stage
+                logger.warn("List write failed", e)
                 return SyncResult.PartialFailure
             }
             pending = store.pendingIds()
@@ -168,7 +169,10 @@ internal class DefaultSyncRepository(
         } catch (e: Exception) {
             when (classify(e)) {
                 Kind.Offline -> throw OfflineAbort()
-                Kind.Transient -> state.transientFailure.set(true) // TODO: inject a logger in the Hilt stage
+                Kind.Transient -> {
+                    logger.warn("Transient failure for $url", e)
+                    state.transientFailure.set(true)
+                }
                 Kind.Permanent -> safeReport(url, e)
             }
             null
@@ -184,7 +188,8 @@ internal class DefaultSyncRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            state.localWriteFailure.set(true) // TODO: inject a logger in the Hilt stage
+            logger.warn("Store write failed", e)
+            state.localWriteFailure.set(true)
         }
     }
 
@@ -198,7 +203,7 @@ internal class DefaultSyncRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // TODO: inject a logger in the Hilt stage and log a line here
+            logger.warn("Failure reporter failed for $url", e)
         }
     }
 
@@ -206,7 +211,7 @@ internal class DefaultSyncRepository(
         is IOException -> if (!connectivity.isOnline()) Kind.Offline else Kind.Transient
         is HttpException -> if (isRetryableHttpCode(e.code())) Kind.Transient else Kind.Permanent
         is SerializationException, is InvalidDataException -> Kind.Permanent
-        // [待確認] spec 未列，視為暫時性以免狀態卡住
+        // Unlisted exceptions are transient (spec round 4b).
         else -> Kind.Transient
     }
 

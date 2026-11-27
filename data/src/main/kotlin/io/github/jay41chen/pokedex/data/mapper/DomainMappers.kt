@@ -1,6 +1,6 @@
 package io.github.jay41chen.pokedex.data.mapper
 
-// [待確認] internal：目前只有 :data 內部使用；Hilt binding 若需跨 module 再放寬
+// internal: only used inside :data; the Hilt module provides domain interfaces only.
 
 import io.github.jay41chen.pokedex.data.local.entity.PokemonDetailEntity
 import io.github.jay41chen.pokedex.data.local.entity.PokemonEntity
