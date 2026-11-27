@@ -15,6 +15,7 @@ import io.github.jay41chen.pokedex.testing.FakeCaptureRepository
 import io.github.jay41chen.pokedex.testing.FakePokemonRepository
 import io.github.jay41chen.pokedex.testing.FakeSyncRepository
 import io.github.jay41chen.pokedex.testing.MainDispatcherRule
+import kotlinx.coroutines.flow.MutableSharedFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -97,6 +98,31 @@ class HomeViewModelTest {
 
         syncRepo.status.value = SyncStatus.Finished(2, SyncResult.Success)
         assertEquals(null, vm.state.value.message)
+        assertEquals(CatalogStatus.Empty(offline = false), vm.state.value.catalog)
+    }
+
+    @Test
+    fun `V6 Finished before first catalog emission stays Loading until catalog emits`() {
+        val source = MutableSharedFlow<List<CatalogEntry>>(replay = 1)
+        pokemonRepo.catalogSource = source
+        syncRepo.status.value = SyncStatus.Finished(1, SyncResult.Success)
+
+        val vm = createViewModel()
+        assertEquals(CatalogStatus.Loading, vm.state.value.catalog)
+
+        source.tryEmit(listOf(bulbasaur()))
+        assertEquals(CatalogStatus.Ready, vm.state.value.catalog)
+    }
+
+    @Test
+    fun `V6b Finished then first catalog emission empty yields Empty`() {
+        val source = MutableSharedFlow<List<CatalogEntry>>(replay = 1)
+        pokemonRepo.catalogSource = source
+        syncRepo.status.value = SyncStatus.Finished(1, SyncResult.Success)
+
+        val vm = createViewModel()
+        source.tryEmit(emptyList())
+
         assertEquals(CatalogStatus.Empty(offline = false), vm.state.value.catalog)
     }
 }

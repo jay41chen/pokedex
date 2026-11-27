@@ -1,6 +1,7 @@
 package io.github.jay41chen.pokedex.ui.home
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.jay41chen.pokedex.domain.model.SyncResult
 import io.github.jay41chen.pokedex.domain.model.SyncStatus
@@ -19,7 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// 尚未加 @HiltViewModel：repo binding 還不存在，Hilt 整合階段再加。
+@HiltViewModel
 class HomeViewModel @Inject constructor(
     observeTypeSections: ObserveTypeSections,
     observeCaptures: ObserveCaptures,
@@ -32,6 +33,7 @@ class HomeViewModel @Inject constructor(
         val ui: HomeUiState,
         val lastShownRound: Long = 0L,
         val lastFinished: SyncResult? = null,
+        val catalogLoaded: Boolean = false,
     )
 
     private val internal = MutableStateFlow(
@@ -71,7 +73,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun State.withSections(sections: List<TypeSection>): State =
-        copy(ui = ui.copy(sections = sections)).withCatalog()
+        copy(ui = ui.copy(sections = sections), catalogLoaded = true).withCatalog()
 
     private fun State.onStatus(status: SyncStatus): State {
         if (status !is SyncStatus.Finished || status.round <= lastShownRound) return this
@@ -87,10 +89,15 @@ class HomeViewModel @Inject constructor(
         ).withCatalog()
     }
 
-    private fun State.withCatalog(): State = copy(ui = ui.copy(catalog = deriveCatalog(ui.sections, lastFinished)))
+    private fun State.withCatalog(): State = copy(ui = ui.copy(catalog = deriveCatalog(ui.sections, catalogLoaded, lastFinished)))
 
-    private fun deriveCatalog(sections: List<TypeSection>, lastFinished: SyncResult?): CatalogStatus = when {
+    private fun deriveCatalog(
+        sections: List<TypeSection>,
+        catalogLoaded: Boolean,
+        lastFinished: SyncResult?,
+    ): CatalogStatus = when {
         sections.isNotEmpty() -> CatalogStatus.Ready
+        !catalogLoaded -> CatalogStatus.Loading
         lastFinished == null -> CatalogStatus.Loading
         else -> CatalogStatus.Empty(offline = lastFinished == SyncResult.Offline)
     }

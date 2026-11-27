@@ -7,6 +7,7 @@ import io.github.jay41chen.pokedex.domain.model.TypeName
 import io.github.jay41chen.pokedex.domain.usecase.ObservePokemonDetail
 import io.github.jay41chen.pokedex.testing.FakePokemonRepository
 import io.github.jay41chen.pokedex.testing.MainDispatcherRule
+import io.github.jay41chen.pokedex.ui.navigation.DetailRoute
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -26,7 +27,7 @@ class DetailViewModelTest {
     @Test
     fun `shows Loading until detail for the navigated id arrives, then Content`() {
         pokemonRepo.detail(PokemonId(5)).value = detailOf(5, "Charmeleon")
-        val vm = DetailViewModel(PokemonId(4), ObservePokemonDetail(pokemonRepo))
+        val vm = DetailViewModel(DetailRoute(4), ObservePokemonDetail(pokemonRepo))
 
         assertEquals(DetailUiState.Loading, vm.state.value)
 
@@ -40,7 +41,7 @@ class DetailViewModelTest {
     fun `returns to Loading when detail becomes null`() {
         val charmander = detailOf(4, "Charmander")
         pokemonRepo.detail(PokemonId(4)).value = charmander
-        val vm = DetailViewModel(PokemonId(4), ObservePokemonDetail(pokemonRepo))
+        val vm = DetailViewModel(DetailRoute(4), ObservePokemonDetail(pokemonRepo))
 
         assertEquals(DetailUiState.Content(charmander), vm.state.value)
 

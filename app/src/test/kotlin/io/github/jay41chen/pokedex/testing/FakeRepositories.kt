@@ -14,9 +14,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakePokemonRepository : PokemonRepository {
     val catalog = MutableStateFlow<List<CatalogEntry>>(emptyList())
+    var catalogSource: Flow<List<CatalogEntry>>? = null
     private val details = mutableMapOf<PokemonId, MutableStateFlow<PokemonDetail?>>()
 
-    override fun observeCatalog(): Flow<List<CatalogEntry>> = catalog
+    override fun observeCatalog(): Flow<List<CatalogEntry>> = catalogSource ?: catalog
 
     fun detail(id: PokemonId): MutableStateFlow<PokemonDetail?> = details.getOrPut(id) { MutableStateFlow(null) }
 
