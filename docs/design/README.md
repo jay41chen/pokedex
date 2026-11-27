@@ -8,4 +8,5 @@
 | [0004](0004-retry-in-application-interceptor.md) | Retry transient failures in a shared OkHttp application interceptor | Accepted |
 | [0005](0005-table-split-and-write-semantics.md) | Five tables, one per API resource, written with upsert | Accepted |
 | [0006](0006-failure-classification-and-user-messages.md) | Failure classification, sync results, and messages as UI state | Accepted |
-| [0007](0007-tests-without-extra-libraries.md) | Contract tests with fakes; no MockWebServer or Robolectric | Accepted |
+| [0007](0007-tests-without-extra-libraries.md) | Contract tests with fakes; no MockWebServer or Robolectric | Accepted, amended by 0008 |
+| [0008](0008-compose-ui-tests.md) | Compose UI tests for screen behavior JVM tests cannot see | Accepted |

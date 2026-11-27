@@ -1,6 +1,6 @@
 # 0007 — Contract tests with fakes; no MockWebServer or Robolectric
 
-**Status**: Accepted (2026-11-26).
+**Status**: Accepted (2026-11-26). Amended by [0008](0008-compose-ui-tests.md): `:app` adds Compose UI tests.
 
 ## Context
 

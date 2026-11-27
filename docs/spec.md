@@ -297,7 +297,7 @@ class MainViewModel @Inject constructor(private val requestSync: RequestSync) : 
 | --- | --- |
 | `Empty(offline = true)` | 「目前離線，連上網路後會自動載入」 |
 | `Empty(offline = false)` | 「暫時無法載入資料，稍後會自動重試」 |
-| `message = Offline` | Snackbar「目前離線，顯示先前的資料」 |
+| `message = Offline` | Snackbar「目前離線，顯示先前的資料」（`Short`。2026-11-27 實測：debug build 在模擬器冷啟動時主執行緒卡頓，4 秒實際只看得到約 2 秒；判斷是開發機資源吃緊，不改） |
 | `message = PartialFailure` | Snackbar「部分資料未載入，稍後會自動重試」 |
 
 | 決定 | 理由 | 考慮過的替代 |
