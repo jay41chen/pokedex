@@ -10,7 +10,7 @@
 ## 規則
 - 只有使用者要求才 commit／push；新增第三方套件前先問。
   - 已同意：Hilt、Coil、kotlinx.serialization、Retrofit／OkHttp、Jetpack（Room、Compose、Navigation）。
-  - 測試只用 JUnit 4、`kotlinx-coroutines-test`、`androidx.test` runner。
+  - 測試只用 JUnit 4、`kotlinx-coroutines-test`、`androidx.test` runner；`:app` 另可用 Compose UI test（`ui-test-junit4`，ADR 0008）。
 - 硬規則（ADR 0001、0003、0005）：
   - 「哪些要抓」只由 `pendingIds()` 判斷。
   - Android 元件 → VM → use case → repo，沒有例外；`:app` 只有 Hilt module 可以 import `:data`。
@@ -59,4 +59,6 @@
   - `:domain`：`./gradlew :domain:test --rerun-tasks`
   - `:data`、`:app`：`./gradlew :<module>:testDebugUnitTest --rerun-tasks`
 - 有畫面改動的階段，Judge 除了照 spec 狀態表審，還要把截圖或 Preview 和 mock 逐項對照版面（位置、對齊、尺寸、顏色），並列出對照結果；只照狀態表審會漏掉版面。
-- instrumented 測試（B1–B5，`./gradlew :data:connectedDebugAndroidTest`）只在 DAO 或 SQL 有改動時跑，跑之前要先開模擬器（ADR 0007）；其他階段跑單元測試和建置。
+- instrumented 測試跑之前要先開模擬器；其他階段跑單元測試和建置。
+  - `:data`（B1–B5，`./gradlew :data:connectedDebugAndroidTest`）只在 DAO 或 SQL 有改動時跑（ADR 0007）。
+  - `:app`（U1–U5，`./gradlew :app:connectedDebugAndroidTest`）只在改到 `ui/` 下 composable 時跑（ADR 0008）。

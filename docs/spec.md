@@ -417,7 +417,7 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 
 ## 測試策略
 
-第一批做 ★ 的 10 個，其餘依時間補，沒做的寫進 NOTES。每個測試都針對一個具體會壞的情況，不寫「驗證有呼叫到」的測試。新增依賴只有 JUnit 4、`kotlinx-coroutines-test`、`androidx.test` runner。
+第一批做 ★ 的 10 個，其餘依時間補，沒做的寫進 NOTES。每個測試都針對一個具體會壞的情況，不寫「驗證有呼叫到」的測試。新增依賴只有 JUnit 4、`kotlinx-coroutines-test`、`androidx.test` runner，以及 `:app` 的 Compose UI test（`ui-test-junit4`、`ui-test-manifest`，版本走 Compose BOM；2026-11-27 加入，見 ADR 0008）。
 
 | # | 層 | 怎麼跑 | 情境 | 斷言 |
 | --- | --- | --- | --- | --- |
@@ -458,6 +458,13 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | V6 | VM | JVM fake | status 已是 `Finished(1, Success)`，catalog 還沒第一次 emit | `Loading`；之後 emit 非空 → `Ready`，emit 空 → `Empty(offline = false)` |
 | V7 | VM | JVM fake | Capture 的 repository 寫入丟例外 | 記一筆 warn log；VM 之後仍能正常 Capture／Release |
 | V8 | VM | JVM fake | Release 的 repository 寫入丟例外 | 同上 |
+| U1 | UI | instrumented（Compose） | 詳細頁 `evolvesFrom.imageUrl == null`，點 Evolves from | 不導頁；顯示 Snackbar「資料還在載入，稍後再試」 |
+| U2 | UI | instrumented（Compose） | U1 的 Snackbar 顯示中再點一次 | 不排隊：同時只有一則，不會在第一則消失後再跳一則 |
+| U3 | UI | instrumented（Compose） | 首頁 state 帶 `message = Offline` | 顯示 Snackbar「目前離線，顯示先前的資料」，並回報 `MessageShown` |
+| U4 | UI | instrumented（Compose） | 詳細頁 `species == null`、`species.evolvesFrom == null`、`description == ""` | 依狀態表：佔位、隱藏 Evolves from、隱藏描述 |
+| U5 | UI | instrumented（Compose） | 點卡片上的寶貝球 | 只送出 Capture（該 id），不觸發開詳細頁 |
+
+U1–U5 直接把假的 UI state 傳給 composable，不用 Hilt、不測導頁實作與動畫；改到 `:app` 的 `ui/` 下 composable 的階段跑 `./gradlew :app:connectedDebugAndroidTest`（要先開模擬器）。
 
 R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 repository 讀取 SQL 的 JOIN 與排序。DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
