@@ -61,6 +61,18 @@
   - MV4 連線洩漏：三份 logcat 搜不到 "leaked"；OkHttp 要等 GC 才印，只算弱證據。
   - MV5 cache eviction：pokemon/25 被換成 `{}` 時記永久性失敗，journal 該 key 依序 DIRTY → CLEAN → REMOVE，Electric 列少了 Pikachu；拿掉故障後只重抓 pokemon/25 和它的圖，Pikachu 回來。
   - 附帶：按 HOME 幾秒後背景請求全部 `UnknownHostException`，推測是 API 37 對背景 app 的網路限制 [待確認]，sync 歸成暫時性失敗、回前景補抓；Pikachu 插到列最前面時列表保持原位，沒跳回開頭。
+- RD-app MV3 重跑（證據留在本機）：冷啟動 debug build 在模擬器上 Choreographer 報 432–484 個 skipped frames（7–8 秒），Snackbar 看得到約 2 秒。原因查到：Material3 1.4.0 `SnackbarHost` 在資料出現時就開始 `delay(4000L)`，用真實時間倒數，主執行緒卡住時倒數照走。人決定維持 `Short`（推測是開發機負載，release 與真機沒量過）。
+- RD-app V5 改名（test(app): prefix V5 test name to match spec `459c50e`）。
+- RD-app Evolves from 載入中 Snackbar（feat(app): show loading snackbar when tapping Evolves from before its detail arrives `a1415e3`）：沒載入完時點擊不導頁，跳「資料還在載入，稍後再試」，不排隊。
+- RD-app 無障礙修正（fix(app): give Evolves from a button role and click label, drop duplicate image description `251e0d9`）。
+- PO：Compose UI test 列入測試依賴，spec 加 U1–U5（build: add Compose UI test libraries; list U1-U5 screen tests in spec `23064d9`）；[ADR 0008](design/0008-compose-ui-tests.md)，修訂 0007（`9291dca`）。
+- PO：catalog 釘 `concurrent-futures` 1.2.0（`c72bae9`）：`profileinstaller` 帶 1.1.0、`androidx.test.ext:junit` 1.3.0 要 1.2.0，AGP 要求 test APK 與 app 依賴版本一致。
+- PO：catalog 釘 `espresso-core` 3.7.0（`fe25334`）：`ui-test-junit4` 帶進的 3.5.0 在 API 37 呼叫已移除的 `InputManager.getInstance`，7 個 connected 測試全在 idle 同步時丟 `NoSuchMethodException`。spec 補 androidTest 方法名用 `U1_camelCase`（minSdk 26 的 DEX 不接受方法名有空白）。
+- RD-app U1–U5 Compose UI test（test(app): add Compose UI tests U1-U5 for snackbars, detail states and ball tap `3d02707`），commit 16:17。connected 跑在 API 37 模擬器。
+  - 基準：單元測試 18 個全過；connected 7 個全過，總時間 2:53。
+  - Judge：通過。5 個 mutation 都抓到：拿掉不排隊的 guard（U2）、不回報 `MessageShown`（U3）、隱藏 Evolves from（U4b）、先送 `MessageShown` 再顯示（U3）、點球同時開詳細頁（U5）。
+  - 意外：doer 第一次跑 connected 時 U4a 在 teardown 失敗（Activity 停在 PAUSED，沒進 DESTROYED），重跑就過。Judge 從 logcat 推論是模擬器負載：Activity 啟動 6.2 秒、PAUSED 到 DESTROYED 7.5 秒 [待確認]。
+  - 低 3 項待人決定：U4c 沒驗空的 Text 節點；時間點寫死 `Short` = 4000ms；單個 detail 測試要 20–30 秒，有偶發逾時風險。
 **決定**
 - R1–R7 列進 spec 測試清單，不標 ★。
 - DI 維持原分工：`:data` 提供自己的 Hilt binding，實作類別保持 `internal`（人問過是否該由 RD-app 做，討論後維持）。
@@ -71,6 +83,9 @@
 - 捕捉／釋放寫入失敗只記 log，不顯示 Snackbar、不 crash。
 - 「點了還沒載入的 Evolves from 跳 Snackbar」從 backlog 拉進來做。
 - flavor\_text 的 Unicode 空白列為 known issue（backlog）。
+- Snackbar 維持 `SnackbarDuration.Short`（MV3 重跑後，人決定）。
+- `:app` 加 Compose UI test（[ADR 0008](design/0008-compose-ui-tests.md)），只在改到 `ui/` 下 composable 時跑 U1–U5。
+- 傳遞依賴衝突用 catalog 釘版解決：`concurrent-futures` 1.2.0、`espresso-core` 3.7.0。
 
 **AI 協作紀錄**（NOTES 第 1 題素材）
 - 這兩筆不是人推翻 AI 的提議，而是 AI 規劃時憑印象假設函式庫行為、沒有先驗證，由 Judge 的 mutation 抓出：`fullBindingGraphValidation` 的作用、H2b 的例外情境（細節見上方 H 段）。
@@ -79,15 +94,13 @@
 - MV3 的誤判：截圖沒拍到 Snackbar 就被當成 bug，逐格看錄影才確認有出現；「1fps 剛好漏掉」的解釋 AI 直接接受了，PO 對照 4 秒的 duration 才發現算不通。驗證方法本身的取樣率也要檢查。
 
 **未決・卡住**
-- MV3：Snackbar 顯示約 2 秒，要不要改成 `SnackbarDuration.Long` 等人決定。
-- 待實測還剩：離線時按返回再立刻重開、離線且 DB 空時旋轉、上方插入整列新 type（MV5 只驗了列內插入）。前兩項要看 Snackbar。
-- RD-app：V5 測試改名 Judge 通過（18 個全過），待 commit；Evolves from 載入中 Snackbar 段等人放行。
-- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；沒有 Compose UI test，導覽 guard、`onStart` 觸發、Coil 共用 client、`@HiltViewModel`、Snackbar 顯示只能靠模擬器與人工檢查；R5 只鎖住 DB 讀回順序；N1 的轉場取捨；N2 重現不了；連續捕捉的理論競態；Room 寫入失敗只有 JVM 測試證明；背景網路被斷（API 37，[待確認]）；flavor\_text Unicode 空白。
+- U1–U5 低 3 項等人決定。
+- 待實測還剩：離線時按返回再立刻重開、離線且 DB 空時旋轉、上方插入整列新 type（MV5 只驗了列內插入）。
+- NOTES 第 1–5 題草稿待人審；第 6 題等時數。
 
 **下一步**
-- 人決定 Snackbar duration；補驗剩下的待實測。
-- RD-app Evolves from Snackbar 段（人放行後）。
-- PO：README 補截圖後 commit；NOTES 先和人談結構再寫（第 3 題用 MV 結果，第 6 題補實際時間）。
+- 補驗剩下的待實測。
+- PO：NOTES 第 6 題、README 截圖後 commit、更新 HANDOVER。
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
 
