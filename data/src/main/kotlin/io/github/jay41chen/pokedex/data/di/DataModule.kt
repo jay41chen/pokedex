@@ -71,7 +71,7 @@ internal object DataModule {
 
     @Provides
     @Singleton
-    fun okHttpClient(cache: Cache): OkHttpClient =
+    fun okHttpClient(cache: Cache, @ApplicationContext context: Context): OkHttpClient =
         OkHttpClient.Builder()
             .cache(cache)
             .addInterceptor(RetryInterceptor(ThreadSleeper))
@@ -81,6 +81,7 @@ internal object DataModule {
                     addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
                 }
             }
+            .apply { faultInjectionInterceptors(context).forEach { addNetworkInterceptor(it) } }
             .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
 
