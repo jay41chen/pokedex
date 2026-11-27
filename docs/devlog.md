@@ -1,8 +1,57 @@
 # Devlog
 
+## 2026-11-27（repository 與 `:data` Hilt binding）
+
+**時間**：RD-data R 段 09:35–09:47（Do 寫檔約 3 分鐘），修正輪 09:50–09:57。H 段 10:1x 開始。
+
+**做了什麼**
+- RD-data R 段：repository 與讀取用的 DAO（feat(data): add Pokemon and Capture repositories with R1-R7 tests `af8a02c`，在 `data` 分支，尚未進 main）。
+  - AI 產出：`PokemonDao`（`@Transaction` 加 `@Relation` 一次讀完 types，detail 與 types 不會分兩次送出）、`PokemonRepositoryImpl`、`CaptureRepositoryImpl`（UUID 加 `TimeSource`）、`PokedexDatabase.pokemonDao()`；schema 沒變。新增 R1–R4 instrumented 測試。
+  - Gradle 耗時（舊 MBA）：doer 的 unit 加 androidTest 編譯 26 秒、connected 26 秒；Judge 的 unit（`--rerun-tasks`）21 秒、connected 12 秒、每個 mutation 8–19 秒。
+  - Judge：通過。4 個 mutation 都被抓到：catalog 的 JOIN 改 LEFT JOIN（R1）、species 的 LEFT JOIN 改 JOIN（R2）、evolves-from 接錯欄位（R3）、capture id 改用 pokemon id（R4）。低嚴重度 3 項：evolves-from 那隻不在表裡時回 null 沒標 [待確認]、catalog 的 `ORDER BY p.id` 沒註明、三個行為沒有測試鎖住。
+  - 人決定：低嚴重度 3 項全補（PO 原本建議只補 slot 排序）。
+- RD-data R 段修正輪：新增 R5–R7，兩處補 [待確認] 註解，正式邏輯沒改；connected 13/13 通過（doer `--rerun-tasks` 16 秒，Judge 每次 6–10 秒）。
+  - Judge：複審通過。mapper 拿掉 slot 排序時 R5 抓不到（DB 依主鍵讀回已經排好），由 `MappersTest` 抓到，低嚴重度。`PokemonRepositoryImpl` 是新檔，無法用 diff 證明只加了註解，Judge 逐行讀過確認邏輯一致。
+- PO：spec 測試清單加入 R1–R7，不標 ★（待 commit）。
+
+**決定**
+- R1–R7 列進 spec 測試清單，不標 ★。
+- DI 維持原分工：`:data` 提供自己的 Hilt binding，實作類別保持 `internal`（人問過是否該由 RD-app 做，討論後維持）。
+
+**未決・卡住**
+- 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
+- `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認（mapper 目前換成空白，標待確認）。
+- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；詳細頁顯示規則與外觀沒有 UI 測試；R5 只鎖住 DB 讀回順序。
+- 寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
+
+**下一步**
+- RD-data H 段進行中：`DataModule`（Hilt）、`AndroidConnectivityChecker`、`CacheEvictingReporter`、`DataLogger`、sync 的 TODO 換成 log、註解清理；`data/build.gradle.kts` 加 `dagger.fullBindingGraphValidation` 並開 buildConfig（debug 才開 OkHttp log），不加新依賴。
+- H 段進 main 後，通知 RD-app 做 Hilt＋Navigation 整合，再做手動驗證（spec「手動驗證」與「待實測」）。
+- PO：README（整合完、app 能跑之後）、NOTES（第 6 題用「時間分配」表，補上整合與驗證的實際時間）。
+
 ## 2026-11-26（一面、範圍議定、契約凍結）
 
-**時間**：面談與契約討論沒有記錄起訖時間。Phase 0a：18:04–18:09（Do 約 3 分鐘、Judge 約 1.5 分鐘）。Phase 0b：18:12–18:36（含契約修訂與兩輪 Judge）。
+**時間**：Phase 0a：18:04–18:09（Do 約 3 分鐘、Judge 約 1.5 分鐘）。Phase 0b：18:12–18:36（含契約修訂與兩輪 Judge）。
+
+**時間分配**（NOTES 第 6 題素材）：面談前的分析和討論當時沒記起訖時間，下表是事後從 AI 對話紀錄的時間戳推算的。兩則訊息相隔不到 20 分鐘就算在工作，所以包含 AI 執行和人閱讀的時間；面談本身、離線讀規格、寫 email 不在內。
+
+| 階段 | 時間 |
+| --- | --- |
+| 面談前：讀題、試打 API、對照 mock（11/18） | 約 1.0h |
+| 面談前：資料設計：schema、REPLACE／RESTRICT、species 與名字對照（11/18–11/19） | 約 1.3h |
+| 面談前：sync 設計：offline first、重試、觸發時機、local default（11/19–11/23） | 約 1.2h |
+| 面談前：架構分層：三 module、命名（11/24） | 約 0.7h |
+| 面談前：範圍、砍單順序、估時（11/19、11/24） | 約 0.7h |
+| 面談前：email 提問與定稿（11/18–11/19） | 約 1.2h |
+| 面談前：面談準備：STAR 確認、Part 1 題目、預演（11/18–11/19）；訪綱（11/26） | 約 1.2h |
+| 提案與方案比較（11/26 面談前） | 約 0.4h |
+| 面談後定案與五輪契約（11/26） | 約 1.6h |
+| 建 repo、HANDOVER、PO／RD 分工設定（11/26） | 約 0.8h |
+| Phase 0 與 RD 平行實作（11/26 17:40–21:26，牆鐘） | 約 3.5h |
+
+- 面談前跟題目直接相關的設計（讀題到範圍估時）約 4.9h；email 與面談準備約 2.4h。
+- 只算 spec 的部分（提案、方案比較、五輪契約）約 2h；加上實作，約 5.5h。
+- 五輪契約能在 1.6h 內談完，是因為 schema、upsert／RESTRICT、三 module 分層在面談前就討論過了（11/18–11/24）。
 
 **做了什麼**
 - 第一次技術面談，議定交付範圍，結論寫在 ADR 0002、0003。
@@ -113,4 +162,4 @@
 - RD-app：已 rebase 到 `0f5e1bf`，等 `:data` Hilt binding 進 main 後做 Hilt＋Navigation 整合與手動驗證。Navigation 延後是因為 NavHost 要向 Hilt 取 VM、用 assisted injection 傳 route id，binding 沒進來前無法編譯（人決定）。
 - 檢查點二（第 3 天結束）：★ 10 個全過（S1、S2 在 `2cb099a`）。
 - 合併後的 main（`0f5e1bf`）：`assembleDebug` 與三個 module 的 JVM 測試 61 個全過（domain 5、data 47、app 9；29s，`--rerun-tasks`）。
-- 估時：面談時講約 18.5h，範圍調整後約 17h。
+- 估時：面談時講約 18.5h，範圍調整後約 17h。實際分配見本段開頭的「時間分配」。

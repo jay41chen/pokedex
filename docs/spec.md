@@ -429,6 +429,13 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | ★B3 | DB | instrumented | 已捕捉 Pikachu，再 upsert ① 的 Pikachu | capture 還在（upsert 而非 REPLACE 的證據） |
 | ★B4 | DB | instrumented | 兩次捕捉 `captured_at` 相同 | 後插入的在前 |
 | B5 | DB | instrumented | 同一 `captureId` 釋放兩次 | 不丟例外 |
+| R1 | DB | instrumented | 只有部分寶可夢有 detail | catalog 只含有 detail 的寶可夢 |
+| R2 | DB | instrumented | 一隻有 detail 沒 species；一隻沒有 detail | 前者 detail 非 null、species 為 null；後者整筆為 null |
+| R3 | DB | instrumented | 前一階段已有 detail | `evolvesFrom` 帶前一階段的名字和圖片 |
+| R4 | DB | instrumented | 同一隻捕捉兩次 | 2 筆、id 不同、`captured_at` 等於注入的時間 |
+| R5 | DB | instrumented | types 依 slot 2、slot 1 的順序寫入 | catalog 與 detail 的 types 都依 slot 排序（讀回順序由主鍵 `(pokemon_id, slot)` 決定；mapper 漏排序由 `MappersTest` 抓，R5 抓不到） |
+| R6 | DB | instrumented | 前一階段在 ① 但還沒有 detail | `evolvesFrom` 有名字、`imageUrl == null`（evolves-from 的 detail 必須是 LEFT JOIN） |
+| R7 | DB | instrumented | 同一 `captureId` 經 repository 釋放兩次 | 不丟例外，captures 為空 |
 | ★S1 | sync | JVM fake | 第一輪在 11 隻後中斷，再跑第二輪 | `FakePokeApi` 收到的 detail 請求從 12 開始，沒有 1–11 |
 | ★S2 | sync | JVM fake | 離線時開始一輪 | `Offline`，0 個請求 |
 | S3 | sync | JVM fake | id 7 一直 503 | `PartialFailure`；下一輪只請求 7 |
@@ -445,7 +452,7 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | V5 | VM | JVM fake | 依序 `Finished(1, Offline)`、`Finished(2, Success)`，中間沒送 `MessageShown` | `message == null`，`Empty(offline = false)` |
 | V4 | VM | JVM fake | catalog 空；status 依序 `Running` → `Finished(1, Offline)` → `Running` | `Loading` → `Empty(offline = true)` → 仍是 `Empty(offline = true)` |
 
-DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
+R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 repository 讀取 SQL 的 JOIN 與排序。DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
 **手動驗證**（在模擬器上做，結果記進 devlog，作為 NOTES 第 3 題素材）
 
