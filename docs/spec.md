@@ -46,7 +46,7 @@
 | 只用三支 API | 不打 `/type`，不寫死 type 清單 | — |
 | 善待 PokéAPI | 並發 5、最多 4 次嘗試含退避、`Retry-After` 上限 5 秒 | I1–I4 |
 | 響應式排版、動畫、大資料量效能 | 做；時間不夠時第一個砍，NOTES 交代 | 手動 |
-| Bonus：Evolves from 可點 | 前一階段還沒有 detail 時不可點 | 手動 |
+| Bonus：Evolves from 可點 | 前一階段還沒有 detail 時點了不導頁，跳 Snackbar 提示（2026-11-27 從 backlog 拉進來） | 手動 |
 
 email Q3（資料是否靜態）會議未明確答覆；採靜態假設（補缺語意），並在 NOTES 註明。
 
@@ -131,7 +131,7 @@ email Q3（資料是否靜態）會議未明確答覆；採靜態假設（補缺
 | --- | --- |
 | `species == null` | Evolves from 與描述顯示佔位 |
 | `species.evolvesFrom == null` | 隱藏 Evolves from 區塊 |
-| `evolvesFrom.imageUrl == null` | 佔位小圖加名稱，不可點 |
+| `evolvesFrom.imageUrl == null` | 佔位小圖加名稱；點了不導頁，跳 Snackbar「資料還在載入，稍後再試」（只在 UI：DetailScreen 的 `SnackbarHostState`，不動 VM 與契約；detail 抓到後 Flow 更新自動變成可導頁） |
 | `description == ""` | 隱藏描述 |
 | `imageUrl == null` | 佔位圖 |
 
@@ -346,7 +346,7 @@ suspend fun pendingIds(): PendingWork   // 「哪些要抓」的唯一判斷點
 | 圖片 | `sprites.other.official-artwork.front_default`，可為 null |
 | type | 依 `slot` 排序 |
 | evolves\_from | 從 URL 取 id；轉 domain 時 `takeIf { it.id <= PokemonScope.MAX_ID }` |
-| 描述 | 第一筆英文 `flavor_text`；`\f` 的處理對照 mock 實測；沒有英文存 `""`，UI 隱藏 |
+| 描述 | 第一筆英文 `flavor_text`，DB 存原文；轉 domain 時 `\f` 換成空白、`\n` 保留（對照 mock 實測 Charizard、Charmeleon，2026-11-27）；沒有英文存 `""`，UI 隱藏 |
 | 必要欄位缺少或 type 為空 | 永久性失敗 |
 
 | 決定 | 理由 | 考慮過的替代 |
@@ -372,6 +372,8 @@ suspend fun pendingIds(): PendingWork   // 「哪些要抓」的唯一判斷點
 | 其他未列出的例外 | 單一 id 處理時丟出上面沒列的例外（例如 NPE、`IllegalStateException`） | 視為暫時性：記 log，繼續其他 id，結果 `PartialFailure` |
 | 整輪層級的例外 | `pendingIds()`、`isOnline()` 等丟出未預期例外 | 記 log，本輪結束，結果 `PartialFailure`；`status` 不可停在 `Running` |
 | 回報失敗 | `PermanentFailureReporter` 丟例外 | 記 log，不影響結果，繼續 |
+
+捕捉／釋放（`:app` 的 `HomeViewModel`）的 Room 寫入丟例外時：VM 用 `CoroutineExceptionHandler` 記 warn log（`:app` 的 `AppLogger`），畫面照常運作，不顯示 Snackbar、不 crash（2026-11-27 使用者決定）。
 
 取消會經 Retrofit suspend 函式傳到 OkHttp call。process 被 kill 不需額外處理，transaction 保證不留半筆資料。
 
@@ -423,6 +425,8 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | ★M1 | mapper | JVM | Pikachu evolves\_from = 172；Charmeleon = 4 | 前者 `evolvesFrom == null`；後者是 Charmander |
 | M2 | mapper | JVM | 特殊名稱 | 29 → Nidoran♀、83 → Farfetch’d、bulbasaur → Bulbasaur |
 | M3 | mapper | JVM | 沒有英文描述 | `description == ""` |
+| M3c | mapper | JVM | Charizard 實際 flavor\_text（含 `\f`、`\n`） | `\n` 保留、`\f` 變空白，與 mock 一致 |
+| M3d | mapper | JVM | 換行前後有空白 | 換行前後的空白被去掉 |
 | M4 | mapper | JVM | types 為空 | 丟出永久性失敗 |
 | ★B1 | DB | instrumented | 已寫 detail 1–11 | `pendingIds().detailIds` 從 12 開始 |
 | ★B2 | DB | instrumented | `writeDetail` 插入 type 時丟例外 | ② 沒有那一筆 |
@@ -452,6 +456,8 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | V5 | VM | JVM fake | 依序 `Finished(1, Offline)`、`Finished(2, Success)`，中間沒送 `MessageShown` | `message == null`，`Empty(offline = false)` |
 | V4 | VM | JVM fake | catalog 空；status 依序 `Running` → `Finished(1, Offline)` → `Running` | `Loading` → `Empty(offline = true)` → 仍是 `Empty(offline = true)` |
 | V6 | VM | JVM fake | status 已是 `Finished(1, Success)`，catalog 還沒第一次 emit | `Loading`；之後 emit 非空 → `Ready`，emit 空 → `Empty(offline = false)` |
+| V7 | VM | JVM fake | Capture 的 repository 寫入丟例外 | 記一筆 warn log；VM 之後仍能正常 Capture／Release |
+| V8 | VM | JVM fake | Release 的 repository 寫入丟例外 | 同上 |
 
 R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 repository 讀取 SQL 的 JOIN 與排序。DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
@@ -478,13 +484,14 @@ R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 rep
 | 永久性失敗提示使用者回報 | 排除 | MVP 只記 log；正式產品改接自動回報（Crashlytics non-fatal） |
 | 每日更新（B） | backlog | 排在 Bonus 後；切入點 `pendingIds()` 已留。屆時 `writeDetail` 要在同一個 transaction 先刪該 id 的舊 type 再寫（補缺語意下只寫一次，目前不刪） |
 | 停在 app 內時網路恢復立刻補抓 | backlog | 需監聽網路或 WorkManager |
-| 點不可點的 Evolves from 時提示「資料還在載入，稍後再試」 | backlog | 只改 UI（Snackbar），不動 VM 與契約；前一階段的 detail 抓到後 Flow 更新會自動變成可點。做的時候要改上面的狀態表，Judge mutation 改成「點了不導頁、跳 Snackbar」 |
+| 點不可點的 Evolves from 時提示「資料還在載入，稍後再試」 | 已做（2026-11-27 拉進來） | 見「畫面」詳細頁狀態表；Judge mutation 改成「點了不導頁、跳 Snackbar」 |
 | list 永久性失敗時提示使用者 | backlog | 目前照「永久性失敗不影響結果」，本輪為 `Success`，首頁空白且沒有提示；PokéAPI 靜態託管、URL 固定，機率低。要提示需在 `SyncResult` 加值（改契約） |
+| flavor\_text 的 Unicode 空白（NBSP U+00A0、`\u000B` 等） | backlog（known issue） | 正規化只處理空白、`\t`、`\r`、`\n`、`\f`，其他 Unicode 空白原樣保留。抽查 1、5、6、25、122、150 號的第一筆英文描述都沒有這些字元，目前沒有實際影響。要做時用 `Char.isWhitespace()` 逐字判斷，不用 regex 的 `(?U)`，JVM 與 Android（ICU）行為可能不同 [待確認] |
 
 ## 待實測
 
 - [ ] 列表捲在中段時，上方插入新的 type 列（含 index 0），key 錨定的實際表現
-- [ ] `flavor_text` 的 `\f`、`\n` 要怎麼轉換才符合 mock（對照 Charizard、Charmeleon）
+- [x] `flavor_text` 的 `\f`、`\n` 要怎麼轉換才符合 mock（對照 Charizard、Charmeleon）：`\f` 顯示成空白、`\n` 保留換行，見 mapper 表「描述」
 - [ ] sync 進行中 `adb shell am kill`，重開後確認不重抓已完成的
 - [ ] 首次開 app 開飛航模式，再關掉並切回 app
 - [ ] 離線時按返回離開、立刻重開 app：不應出現上一次的舊 Snackbar（驗證「HomeViewModel 晚於 onStart 建立」的前提）
