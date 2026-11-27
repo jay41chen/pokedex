@@ -96,7 +96,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `success after offline clears unshown message`() {
+    fun `V5 Finished Success after unshown Offline clears message and shows Empty online`() {
         val vm = createViewModel()
 
         syncRepo.status.value = offlineRound1
