@@ -28,9 +28,16 @@ class FakeCaptureRepository : CaptureRepository {
     val captures = MutableStateFlow<List<CapturedPokemon>>(emptyList())
 
     override fun observeCaptures(): Flow<List<CapturedPokemon>> = captures
-    override suspend fun capture(id: PokemonId) {}
+    var captureError: Throwable? = null
+    var releaseError: Throwable? = null
 
-    override suspend fun release(captureId: CaptureId) {}
+    override suspend fun capture(id: PokemonId) {
+        captureError?.let { throw it }
+    }
+
+    override suspend fun release(captureId: CaptureId) {
+        releaseError?.let { throw it }
+    }
 }
 
 class FakeSyncRepository : SyncRepository {

@@ -11,7 +11,9 @@ import io.github.jay41chen.pokedex.domain.usecase.ObserveCaptures
 import io.github.jay41chen.pokedex.domain.usecase.ObserveSyncStatus
 import io.github.jay41chen.pokedex.domain.usecase.ObserveTypeSections
 import io.github.jay41chen.pokedex.domain.usecase.ReleaseCapture
+import io.github.jay41chen.pokedex.logging.AppLogger
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,7 @@ class HomeViewModel @Inject constructor(
     observeSyncStatus: ObserveSyncStatus,
     private val capturePokemon: CapturePokemon,
     private val releaseCapture: ReleaseCapture,
+    private val logger: AppLogger,
 ) : ViewModel() {
 
     private data class State(
@@ -66,11 +69,14 @@ class HomeViewModel @Inject constructor(
 
     fun onIntent(intent: HomeIntent) {
         when (intent) {
-            is HomeIntent.Capture -> viewModelScope.launch { capturePokemon(intent.id) }
-            is HomeIntent.Release -> viewModelScope.launch { releaseCapture(intent.captureId) }
+            is HomeIntent.Capture -> viewModelScope.launch(logFailure("Capture failed: id=${intent.id.value}")) { capturePokemon(intent.id) }
+            is HomeIntent.Release -> viewModelScope.launch(logFailure("Release failed: captureId=${intent.captureId.value}")) { releaseCapture(intent.captureId) }
             HomeIntent.MessageShown -> internal.update { it.copy(ui = it.ui.copy(message = null)) }
         }
     }
+
+    /** 捕捉／釋放寫入失敗時只記 log，不讓例外讓 app crash；CoroutineExceptionHandler 不會收到取消，不必另外處理 CancellationException。 */
+    private fun logFailure(message: String) = CoroutineExceptionHandler { _, e -> logger.warn(message, e) }
 
     private fun State.withSections(sections: List<TypeSection>): State =
         copy(ui = ui.copy(sections = sections), catalogLoaded = true).withCatalog()
