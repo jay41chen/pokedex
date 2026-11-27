@@ -43,5 +43,9 @@ class FakeCaptureRepository : CaptureRepository {
 class FakeSyncRepository : SyncRepository {
     override val status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
 
-    override fun requestSync() {}
+    var requestSyncCount = 0
+
+    override fun requestSync() {
+        requestSyncCount++
+    }
 }
