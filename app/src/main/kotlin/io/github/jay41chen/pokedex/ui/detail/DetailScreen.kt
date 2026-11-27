@@ -21,10 +21,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +46,7 @@ import io.github.jay41chen.pokedex.domain.model.Species
 import io.github.jay41chen.pokedex.domain.model.TypeName
 import io.github.jay41chen.pokedex.ui.component.PlaceholderPainter
 import io.github.jay41chen.pokedex.ui.theme.PokedexTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,8 +56,18 @@ fun DetailScreen(
     onPokemonClick: (PokemonId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val notReadyText = stringResource(R.string.detail_evolves_from_loading)
+    // 已在顯示就不再排隊，避免連點堆一串
+    val onEvolvesFromNotReady: () -> Unit = {
+        if (snackbarHostState.currentSnackbarData == null) {
+            scope.launch { snackbarHostState.showSnackbar(notReadyText) }
+        }
+    }
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {},
@@ -92,6 +107,7 @@ fun DetailScreen(
             is DetailUiState.Content -> DetailContent(
                 detail = state.detail,
                 onPokemonClick = onPokemonClick,
+                onEvolvesFromNotReady = onEvolvesFromNotReady,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -103,6 +119,7 @@ fun DetailScreen(
 private fun DetailContent(
     detail: PokemonDetail,
     onPokemonClick: (PokemonId) -> Unit,
+    onEvolvesFromNotReady: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val card = detail.card
@@ -141,7 +158,11 @@ private fun DetailContent(
             ) {
                 detail.types.forEach { TypeChip(it) }
             }
-            EvolvesFromSection(species = species, onPokemonClick = onPokemonClick)
+            EvolvesFromSection(
+                species = species,
+                onPokemonClick = onPokemonClick,
+                onNotReady = onEvolvesFromNotReady,
+            )
             DescriptionSection(species = species)
         }
     }
@@ -165,7 +186,7 @@ private fun TypeChip(type: TypeName) {
 /** 詳細頁編號：對應 mock 的 #5、#6，不補零。 */
 internal fun formatPokemonNumber(id: PokemonId): String = "#${id.value}"
 
-/** Evolves from 列點下去要去的 id；前一階段的圖還沒抓到（imageUrl == null）就沒有 detail 可看，回傳 null 表示不可點。 */
+/** Evolves from 列點下去要去的 id；前一階段的圖還沒抓到（imageUrl == null）就沒有 detail 可看，回傳 null 代表前一階段還沒有 detail，不導頁、改顯示載入中提示。 */
 internal fun evolvesFromClickTarget(evolvesFrom: PokemonCard): PokemonId? =
     if (evolvesFrom.imageUrl != null) evolvesFrom.id else null
 
@@ -173,6 +194,7 @@ internal fun evolvesFromClickTarget(evolvesFrom: PokemonCard): PokemonId? =
 private fun EvolvesFromSection(
     species: Species?,
     onPokemonClick: (PokemonId) -> Unit,
+    onNotReady: () -> Unit,
 ) {
     val evolvesFrom = species?.evolvesFrom
     // 已有 species 但沒有前一階段：整個區塊（含標題）不顯示
@@ -194,10 +216,8 @@ private fun EvolvesFromSection(
         }
     } else {
         val target = evolvesFromClickTarget(evolvesFrom)
-        val rowModifier = if (target != null) {
-            Modifier.clickable { onPokemonClick(target) }
-        } else {
-            Modifier
+        val rowModifier = Modifier.clickable {
+            if (target != null) onPokemonClick(target) else onNotReady()
         }
         Row(
             modifier = rowModifier.fillMaxWidth(),
