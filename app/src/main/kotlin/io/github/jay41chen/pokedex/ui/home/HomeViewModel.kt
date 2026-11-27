@@ -37,6 +37,8 @@ class HomeViewModel @Inject constructor(
         val lastShownRound: Long = 0L,
         val lastFinished: SyncResult? = null,
         val catalogLoaded: Boolean = false,
+        // 待顯示的 message：catalog 是 Loading 時不放出，等列表先出來（離線結果幾乎立即到，Room 第一次 emit 較慢）。
+        val pendingMessage: UserMessage? = null,
     )
 
     private val internal = MutableStateFlow(
@@ -71,7 +73,7 @@ class HomeViewModel @Inject constructor(
         when (intent) {
             is HomeIntent.Capture -> viewModelScope.launch(logFailure("Capture failed: id=${intent.id.value}")) { capturePokemon(intent.id) }
             is HomeIntent.Release -> viewModelScope.launch(logFailure("Release failed: captureId=${intent.captureId.value}")) { releaseCapture(intent.captureId) }
-            HomeIntent.MessageShown -> internal.update { it.copy(ui = it.ui.copy(message = null)) }
+            HomeIntent.MessageShown -> internal.update { it.copy(pendingMessage = null).render() }
         }
     }
 
@@ -79,7 +81,7 @@ class HomeViewModel @Inject constructor(
     private fun logFailure(message: String) = CoroutineExceptionHandler { _, e -> logger.warn(message, e) }
 
     private fun State.withSections(sections: List<TypeSection>): State =
-        copy(ui = ui.copy(sections = sections), catalogLoaded = true).withCatalog()
+        copy(ui = ui.copy(sections = sections), catalogLoaded = true).render()
 
     private fun State.onStatus(status: SyncStatus): State {
         if (status !is SyncStatus.Finished || status.round <= lastShownRound) return this
@@ -89,13 +91,16 @@ class HomeViewModel @Inject constructor(
             SyncResult.Success -> null
         }
         return copy(
-            ui = ui.copy(message = message),
+            pendingMessage = message,
             lastShownRound = status.round,
             lastFinished = status.result,
-        ).withCatalog()
+        ).render()
     }
 
-    private fun State.withCatalog(): State = copy(ui = ui.copy(catalog = deriveCatalog(ui.sections, catalogLoaded, lastFinished)))
+    private fun State.render(): State {
+        val catalog = deriveCatalog(ui.sections, catalogLoaded, lastFinished)
+        return copy(ui = ui.copy(catalog = catalog, message = if (catalog is CatalogStatus.Loading) null else pendingMessage))
+    }
 
     private fun deriveCatalog(
         sections: List<TypeSection>,

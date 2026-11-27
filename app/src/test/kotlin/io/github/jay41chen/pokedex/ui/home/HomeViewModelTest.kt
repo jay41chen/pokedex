@@ -133,6 +133,21 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `V10 message is held while catalog is Loading and released when catalog emits`() {
+        val source = MutableSharedFlow<List<CatalogEntry>>(replay = 1)
+        pokemonRepo.catalogSource = source
+        syncRepo.status.value = SyncStatus.Finished(1, SyncResult.Offline)
+
+        val vm = createViewModel()
+        assertEquals(CatalogStatus.Loading, vm.state.value.catalog)
+        assertEquals(null, vm.state.value.message)
+
+        source.tryEmit(listOf(bulbasaur()))
+        assertEquals(CatalogStatus.Ready, vm.state.value.catalog)
+        assertEquals(UserMessage.Offline, vm.state.value.message)
+    }
+
+    @Test
     fun `V7 Capture write failure is logged and VM keeps working`() {
         val error = IllegalStateException("disk full")
         captureRepo.captureError = error

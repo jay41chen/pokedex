@@ -9,7 +9,7 @@ data class HomeUiState(
     val pocket: List<CapturedPokemon>,
     val sections: List<TypeSection>,
     val catalog: CatalogStatus,
-    val message: UserMessage?,            // null = 沒有要顯示的 Snackbar
+    val message: UserMessage?,            // null = 沒有要顯示的 Snackbar；catalog 是 Loading 時一律為 null
 )
 
 sealed interface CatalogStatus {
