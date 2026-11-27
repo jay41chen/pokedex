@@ -12,8 +12,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,6 +42,9 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val text = state.message?.let { stringResource(it.toStringRes()) }
     val currentOnIntent by rememberUpdatedState(onIntent)
+    // 只在使用者剛按下捕捉時為 true，讓 Pocket 捲到最前面看到新卡片。
+    // 不是 saveable：捕捉後到 Pocket 更新前若旋轉，旗標遺失、不捲（機率低，接受）
+    var scrollPocketToNewest by remember { mutableStateOf(false) }
     LaunchedEffect(state.message) {
         if (text != null) {
             snackbarHostState.showSnackbar(text)
@@ -60,12 +65,17 @@ fun HomeScreen(
                     onRelease = { onIntent(HomeIntent.Release(it)) },
                     onPokemonClick = onPokemonClick,
                     tileWidth = tileWidth,
+                    scrollToNewest = scrollPocketToNewest,
+                    onScrolledToNewest = { scrollPocketToNewest = false },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.primary)
                 CatalogContent(
                     catalog = state.catalog,
                     sections = state.sections,
-                    onCapture = { onIntent(HomeIntent.Capture(it)) },
+                    onCapture = {
+                        scrollPocketToNewest = true
+                        onIntent(HomeIntent.Capture(it))
+                    },
                     onPokemonClick = onPokemonClick,
                     tileWidth = tileWidth,
                     modifier = Modifier.weight(1f),

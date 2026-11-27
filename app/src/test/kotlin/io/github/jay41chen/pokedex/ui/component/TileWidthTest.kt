@@ -1,22 +1,26 @@
 package io.github.jay41chen.pokedex.ui.component
 
-import kotlin.math.floor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TileWidthTest {
-    private val rows = listOf(360f, 411f, 600f, 840f, 1280f)
+    // 預期張數手算寫死：(row - 16) / 118 取 floor，最少 3；不用和實作相同的公式
+    private val expectedFullTiles = mapOf(
+        360f to 3,
+        411f to 3,
+        600f to 4,
+        840f to 6,
+        1280f to 10,
+    )
 
     @Test
     fun `last tile is half visible at every width`() {
-        for (row in rows) {
+        for ((row, n) in expectedFullTiles) {
             val w = tileWidthDp(row)
-            val n = maxOf(3, floor((row - 16f) / (110f + 8f)).toInt())
             val visibleOfLast = (row - 16f - n * (w + 8f)) / w
 
             assertEquals("row=$row", 0.5f, visibleOfLast, 0.001f)
-            assertTrue("row=$row n=$n", n >= 3)
             assertTrue("row=$row w=$w", w in 85f..125f)
         }
     }

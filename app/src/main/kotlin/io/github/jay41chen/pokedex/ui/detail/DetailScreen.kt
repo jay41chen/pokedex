@@ -108,8 +108,9 @@ private fun DetailContent(
     val card = detail.card
     val species = detail.species
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        // 寬度 45% 對應 mock 比例，上限 240dp 避免平板／橫向時大圖佔滿畫面
-        val imageSize = min(maxWidth * 0.45f, 240.dp)
+        // 寬度 45% 對應 mock 比例；高度 40% 讓橫向時名稱與 type chips 留在第一屏；
+        // 上限 240dp 避免平板過大。BoxWithConstraints 在 verticalScroll 外層，maxHeight 是有限值
+        val imageSize = min(min(maxWidth * 0.45f, maxHeight * 0.4f), 240.dp)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -246,7 +247,7 @@ private val Charmander = PokemonCard(PokemonId(4), "Charmander", "https://exampl
 private val CharmeleonClickable = PokemonDetail(
     card = PokemonCard(PokemonId(5), "Charmeleon", "https://example.invalid/5.png"),
     types = listOf(TypeName("fire")),
-    species = Species(evolvesFrom = Charmander, description = "When it swings its burning tail, the temperature rises."),
+    species = Species(evolvesFrom = Charmander, description = "When it swings\nits burning tail,\nit elevates the temperature to\nunbearably high\nlevels."),
 )
 
 private val CharmeleonNotClickable = CharmeleonClickable.copy(

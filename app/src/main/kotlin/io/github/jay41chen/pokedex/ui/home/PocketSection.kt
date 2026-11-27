@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -29,14 +31,30 @@ import io.github.jay41chen.pokedex.ui.component.PokemonTile
 import io.github.jay41chen.pokedex.ui.component.TileRowStartPaddingDp
 import io.github.jay41chen.pokedex.ui.component.TileSpacingDp
 
+/**
+ * @param scrollToNewest 使用者剛按下捕捉時為 true。新卡片插在第 0 個，但 LazyRow 依 key 停在原位，
+ * 新卡會落在畫面左側外面，所以要捲回最前面。綁在捕捉動作而不是 pocket 內容：
+ * 旋轉後 LaunchedEffect 會重跑、釋放第一張時第 0 個也會變，這兩種都不該捲。
+ * @param onScrolledToNewest 捲完後通知呼叫端清掉旗標。
+ */
 @Composable
 fun PocketSection(
     pocket: List<CapturedPokemon>,
     onRelease: (CaptureId) -> Unit,
     onPokemonClick: (PokemonId) -> Unit,
     tileWidth: Dp,
+    scrollToNewest: Boolean,
+    onScrolledToNewest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 空 Pocket 沒有 LazyRow；空 → 第一次捕捉時 LazyRow 新出現本來就在 0，捲到 0 無害並清旗標
+    val listState = rememberLazyListState()
+    LaunchedEffect(pocket.firstOrNull()?.captureId) {
+        if (scrollToNewest && pocket.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+            onScrolledToNewest()
+        }
+    }
     // 高度由卡片實際高度決定（不寫死），空或不空都一樣高，字體放大時一起變高
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         SectionHeader(
@@ -64,6 +82,7 @@ fun PocketSection(
             val releaseText = stringResource(R.string.release_button)
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
+                state = listState,
                 contentPadding = PaddingValues(horizontal = TileRowStartPaddingDp.dp),
                 horizontalArrangement = Arrangement.spacedBy(TileSpacingDp.dp),
             ) {
