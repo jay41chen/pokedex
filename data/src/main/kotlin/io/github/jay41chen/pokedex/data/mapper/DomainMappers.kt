@@ -21,7 +21,8 @@ private val DISPLAY_NAME_OVERRIDES = mapOf(
     122 to "Mr. Mime",
 )
 
-private val WHITESPACE = Regex("\\s+")
+private val HORIZONTAL_WHITESPACE = Regex("[ \\t]+")
+private val SPACES_AROUND_NEWLINE = Regex("[ \\t]*\\n[ \\t]*")
 
 internal fun toCard(pokemon: PokemonEntity, detail: PokemonDetailEntity?): PokemonCard =
     PokemonCard(
@@ -33,10 +34,14 @@ internal fun toCard(pokemon: PokemonEntity, detail: PokemonDetailEntity?): Pokem
 internal fun toSpecies(species: PokemonSpeciesEntity, evolvesFrom: PokemonCard?): Species =
     Species(
         evolvesFrom = evolvesFrom?.takeIf { it.id.value <= PokemonScope.MAX_ID },
-        // [待確認] 待對照 mock 實測
+        // Line breaks are kept to match the mock (spec mapper table, description row).
+        // \f becomes a space per spec.
+        // Consecutive newlines are not collapsed.
         description = species.description
-            .replace('\u000c', ' ').replace('\n', ' ').replace('\r', ' ')
-            .replace(WHITESPACE, " ")
+            .replace("\r\n", "\n").replace('\r', '\n')
+            .replace('\u000c', ' ')
+            .replace(HORIZONTAL_WHITESPACE, " ")
+            .replace(SPACES_AROUND_NEWLINE, "\n")
             .trim(),
     )
 

@@ -73,7 +73,23 @@ class MappersTest {
     @Test
     fun `M3 description whitespace normalized on read`() {
         val entity = species(speciesJson("en" to "a\\fb\\nc\\r  d ")).toEntity(1)
-        assertEquals("a b c d", toSpecies(entity, null).description)
+        assertEquals("a b\nc\nd", toSpecies(entity, null).description)
+    }
+
+    @Test
+    fun `M3c Charizard flavor text keeps line breaks and turns form feed into space`() {
+        val raw = "Spits fire that\\nis hot enough to\\nmelt boulders.\\fKnown to cause\\nforest fires\\nunintentionally."
+        val entity = species(speciesJson("en" to raw)).toEntity(6)
+        assertEquals(
+            "Spits fire that\nis hot enough to\nmelt boulders. Known to cause\nforest fires\nunintentionally.",
+            toSpecies(entity, null).description,
+        )
+    }
+
+    @Test
+    fun `M3d spaces around newline are removed`() {
+        val entity = species(speciesJson("en" to "a \\n  b")).toEntity(1)
+        assertEquals("a\nb", toSpecies(entity, null).description)
     }
 
     @Test
