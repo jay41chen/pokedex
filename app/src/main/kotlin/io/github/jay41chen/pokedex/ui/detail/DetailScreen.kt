@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -216,7 +217,8 @@ private fun EvolvesFromSection(
         }
     } else {
         val target = evolvesFromClickTarget(evolvesFrom)
-        val rowModifier = Modifier.clickable {
+        val clickLabel = stringResource(R.string.detail_evolves_from_click_label, evolvesFrom.name)
+        val rowModifier = Modifier.clickable(onClickLabel = clickLabel, role = Role.Button) {
             if (target != null) onPokemonClick(target) else onNotReady()
         }
         Row(
@@ -230,7 +232,8 @@ private fun EvolvesFromSection(
             }
             AsyncImage(
                 model = evolvesFrom.imageUrl,
-                contentDescription = evolvesFrom.name,
+                // 裝飾圖：旁邊已有名稱 Text，避免 TalkBack 重複唸名字
+                contentDescription = null,
                 placeholder = PlaceholderPainter,
                 error = PlaceholderPainter,
                 fallback = PlaceholderPainter,

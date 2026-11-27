@@ -13,4 +13,5 @@
     <string name="detail_evolves_from">Evolves from</string>
     <string name="detail_loading_placeholder">資料載入中</string>
     <string name="detail_evolves_from_loading">資料還在載入，稍後再試</string>
+    <string name="detail_evolves_from_click_label">查看 %1$s</string>
 </resources>
