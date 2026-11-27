@@ -464,7 +464,7 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | U4 | UI | instrumented（Compose） | 詳細頁 `species == null`、`species.evolvesFrom == null`、`description == ""` | 依狀態表：佔位、隱藏 Evolves from、隱藏描述 |
 | U5 | UI | instrumented（Compose） | 點卡片上的寶貝球 | 只送出 Capture（該 id），不觸發開詳細頁 |
 
-U1–U5 直接把假的 UI state 傳給 composable，不用 Hilt、不測導頁實作與動畫；改到 `:app` 的 `ui/` 下 composable 的階段跑 `./gradlew :app:connectedDebugAndroidTest`（要先開模擬器）。
+U1–U5 直接把假的 UI state 傳給 composable，不用 Hilt、不測導頁實作與動畫；改到 `:app` 的 `ui/` 下 composable 的階段跑 `./gradlew :app:connectedDebugAndroidTest`（要先開模擬器）。androidTest 的測試方法名用 `U1_camelCase`（例如 `U1_tappingNotReadyEvolvesFromShowsSnackbarAndDoesNotNavigate`）：DEX 在 minSdk 26 不允許方法名有空格，不能用反引號名稱。
 
 R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 repository 讀取 SQL 的 JOIN 與排序。DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
