@@ -1,8 +1,8 @@
 # Devlog
 
-## 2026-11-27（repository 與 `:data` Hilt binding）
+## 2026-11-27（repository、`:data` Hilt binding、Hilt＋Navigation 整合）
 
-**時間**：RD-data R 段 09:35–09:47（Do 寫檔約 3 分鐘），修正輪 09:50–09:57。RD-data H 段 10:1x–10:2x，H2b 修正 10:24–10:27。
+**時間**：RD-app Hilt＋Navigation 整合 10:34–12:16（含模擬器驗證與修正輪）。RD-data R 段 09:35–09:47（Do 寫檔約 3 分鐘），修正輪 09:50–09:57。RD-data H 段 10:1x–10:2x，H2b 修正 10:24–10:27。
 
 **做了什麼**
 - RD-data R 段：repository 與讀取用的 DAO（feat(data): add Pokemon and Capture repositories with R1-R7 tests `d0efd71`；rebase 前為 `af8a02c`）。
@@ -23,25 +23,35 @@
 - RD-data H2b 修正：cache 目錄改指向普通檔案（實測丟 `FileNotFoundException`），並斷言有記到 `"Cache eviction failed"` log；正式程式沒改。doer unit 16 秒；Judge 基準 10 秒。複審通過：拿掉 try/catch、catch 裡不記 log 兩個 mutation 都被抓到。低 1 項（H2b 沒呼叫 `cache.close()`、H2a 有，寫法不一致），RD 建議不修；人決定修（怕之後改寫法時漏關），測試結尾補 `cache.close()`，只改測試檔。
 - RD-data H2b 補 close：10:28–10:31。H2b 改成 try/finally，finally 裡 `runCatching { cache.close() }`。doer unit 9 秒；Judge 基準 8 秒、mutation 7 秒。複審通過，沒有發現；拿掉 reporter 的 try/catch 仍被 H2b 抓到，證明 `runCatching` 只包住 close。
   - 意外：doer 第一次 Edit 因沒先 Read 而失敗，接著跑的 Gradle 用的是舊檔；doer 自己發現、重改重跑，並如實回報。
-
+- RD-app Hilt＋Navigation 整合（feat(app): wire Hilt and Navigation, share OkHttpClient with Coil `ae2d86b`）。
+  - 時間：Do 10:34–10:40、首審 10:41–10:45、模擬器驗證 10:47–11:10、修正輪 Do 11:40–11:50、複審 11:42–12:08（含模擬器）、N1 KDoc 12:13–12:16。Gradle：`assembleDebug --rerun-tasks` 約 14–17 秒，`testDebugUnitTest --rerun-tasks` 約 11–16 秒。
+  - AI 產出：`UseCaseModule`（7 個 `@Provides`）、3 個 VM 加 `@HiltViewModel`、`PokedexNavHost`、MainActivity 在 `onStart` 呼叫 `onAppForegrounded`、`PokedexApp` 實作 Coil `SingletonImageLoader` 並接 `:data` 的共用 `OkHttpClient`。沒有出現 MissingBinding。
+  - 意外：`DetailViewModel` 的 `@Assisted` 參數用 `PokemonId`（value class），KSP 報 `not a valid name: create-JYpEi7E`（Kotlin 對 value class 參數的函式做 name mangling，Dagger 產生的 Java 碼實作不了）。人決定照官方 recipe 傳整個 `DetailRoute`。
+  - Judge 首審：通過，低 5 項。拿掉 `onStart` 呼叫、Coil 自建 client、拿掉 `@HiltViewModel` 三個 mutation 編譯與測試都抓不到；缺 provider 在 `:app` 編譯時報 MissingBinding（補上 H 段 `fullBindingGraphValidation` 抓不到的那一塊）。
+  - 模擬器驗證：需修正，中 2 項。F1：連點兩次返回把 back stack 彈空，畫面全白。F2：DB 已有資料時冷啟動，sync 比 Room 第一次 emit 早結束，VM 把初始空 list 當成「DB 空」，先閃「暫時無法載入資料」。圖片確認經過共用 client。
+  - 修正輪：F1 加 `runIfResumed` guard 加 2 個測試；F2 在 VM 內部加「catalog 已第一次 emit」旗標，新增 V6、V6b，`HomeUiState` 與契約不動；`:app` 測試 13 個全過。複審通過；guard 沒包在返回鍵上的 mutation 測試抓不到，只有模擬器能重現空白畫面。
+  - N1（複審低）：返回首頁 0.5–1 秒內點卡片會被丟掉。查證後官方解法就是 lifecycle-runtime-compose 2.8 的 `dropUnlessResumed`，語意與 `runIfResumed` 相同，N1 是官方做法本身的取捨；人決定不改程式，只在 KDoc 註明（自己寫是因為官方只接受無參數 lambda）。Judge 對照 2.11.0 sources jar 確認一致。
+  - 人決定先不修、交給 backlog 或 NOTES：詳細頁 `#005`（mock 是 `#5`）、卡片名稱字色與字重、列表右側沒露出半張卡、最右欄寶貝球觸控寬約 42.7dp、描述斷行、N2（一次單擊返回沒反應，重現不了）、import 順序、冷啟動慢（推測主機 load 高）。
+- PO：spec 測試清單加 V6，`CatalogStatus.Loading` 註解補上「catalog 尚未第一次 emit」（F2 的根因是「DB 空」有歧義；語意與型別不變）（待 commit）。
 **決定**
 - R1–R7 列進 spec 測試清單，不標 ★。
 - DI 維持原分工：`:data` 提供自己的 Hilt binding，實作類別保持 `internal`（人問過是否該由 RD-app 做，討論後維持）。
 - 缺 provider 不另加 `@EntryPoint` 提早驗，整合時由 `:app` 編譯驗到。
+- 轉場中的點擊防護照官方 `dropUnlessResumed` 的語意，接受「轉場期間點擊被丟掉」的取捨。
+- spec 加 V6、釐清 `Loading` 定義（人同意）。
 
 **AI 協作紀錄**（NOTES 第 1 題素材）：這兩筆不是人推翻 AI 的提議，而是 AI 規劃時憑印象假設函式庫行為、沒有先驗證，由 Judge 的 mutation 抓出：`fullBindingGraphValidation` 的作用、H2b 的例外情境（細節見上方 H 段）。
 
 **未決・卡住**
-- 列表捲到中段時，如果在 index 0 插入新列，key 錨定的實際效果還沒驗證。
-- `flavor_text` 裡 `\f` 的處理方式還沒對照 mock 確認（mapper 目前換成空白，標待確認）。
-- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；詳細頁顯示規則與外觀沒有 UI 測試；R5 只鎖住 DB 讀回順序。
-- 寶貝球 32dp 觸控範圍在 Hilt 整合後手動驗證。
+- 和 mock 的差異（人決定先不修，可開一個 UI 小階段）：`#005` vs `#5`、卡片名稱字色與字重、列表右側沒露出半張卡。
+- 待實測：index 0 插入新列時的 key 錨定、`flavor_text` 的 `\f` 與描述斷行、kill 後續抓、首次啟動飛航模式、連線洩漏警告。
+- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；沒有 Compose UI test，導覽 guard、`onStart` 觸發、Coil 共用 client、`@HiltViewModel` 只能靠模擬器與人工檢查；R5 只鎖住 DB 讀回順序；寶貝球觸控寬約 42.7dp（< 48dp）；N1 的轉場取捨；N2 重現不了。
 
 **下一步**
-- RD-data 原定的 `:data` 階段全部完成（`088c5f2` 已進 main）。
-- RD-app：已通知做 Hilt＋Navigation 整合，範圍先列給人、放行後動工；加 `@HiltViewModel` 後若出現 MissingBinding，轉給 RD-data 修，不在 `:app` 補綁。
-- 整合後做手動驗證（spec「手動驗證」與「待實測」）：kill 後續抓、飛航模式、cache eviction、key 錨定、`\f`、連線洩漏、寶貝球觸控範圍；模擬器由 PO 排隊。
-- PO：README（整合完、app 能跑之後）、NOTES（第 6 題用「時間分配」表，補上整合與驗證的實際時間）。
+- 使用者 push RD-app 的整合（`ae2d86b`）與 PO 的 spec＋devlog。
+- 手動驗證（spec「手動驗證」與「待實測」）：RD-data 做 kill 後續抓、飛航模式、cache eviction、連線洩漏；模擬器由 PO 排隊。
+- 決定要不要開「對齊 mock」UI 小階段。
+- PO：README（app 已能跑）、NOTES（第 6 題補上整合與驗證的實際時間）。
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
 

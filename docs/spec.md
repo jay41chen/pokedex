@@ -264,7 +264,7 @@ data class HomeUiState(
     val message: UserMessage?,            // null = 沒有要顯示的 Snackbar
 )
 sealed interface CatalogStatus {
-    data object Loading : CatalogStatus   // DB 空，且 VM 還沒看過任何 Finished
+    data object Loading : CatalogStatus   // catalog 尚未第一次 emit；或 DB 空，且 VM 還沒看過任何 Finished
     data object Ready : CatalogStatus     // 至少一隻
     data class Empty(val offline: Boolean) : CatalogStatus  // DB 空，且 VM 看過 Finished；offline = 最近一次 Finished 的 result == Offline（之後 Running 期間維持，不退回 Loading）
 }
@@ -451,6 +451,7 @@ internal fun interface Sleeper { fun sleep(millis: Long) }   // interceptor 的�
 | V3 | VM | JVM fake | VM 建立時 status 已是 `Finished(1, Offline)`（VM 晚於該輪結束才建立） | `message == Offline`，不會漏 |
 | V5 | VM | JVM fake | 依序 `Finished(1, Offline)`、`Finished(2, Success)`，中間沒送 `MessageShown` | `message == null`，`Empty(offline = false)` |
 | V4 | VM | JVM fake | catalog 空；status 依序 `Running` → `Finished(1, Offline)` → `Running` | `Loading` → `Empty(offline = true)` → 仍是 `Empty(offline = true)` |
+| V6 | VM | JVM fake | status 已是 `Finished(1, Success)`，catalog 還沒第一次 emit | `Loading`；之後 emit 非空 → `Ready`，emit 空 → `Empty(offline = false)` |
 
 R1–R7 是 RD-data 在 repository 階段補的（2026-11-27 列入），守 repository 讀取 SQL 的 JOIN 與排序。DB 測試只在 DAO／SQL 改動時跑；其餘一律 `./gradlew test`，Do／Judge 的 subagent 可自行執行。
 
