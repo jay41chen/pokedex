@@ -1,6 +1,8 @@
 package io.github.jay41chen.pokedex.ui.home
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +17,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import io.github.jay41chen.pokedex.R
 import io.github.jay41chen.pokedex.domain.model.CaptureId
 import io.github.jay41chen.pokedex.domain.model.CapturedPokemon
@@ -24,6 +27,7 @@ import io.github.jay41chen.pokedex.domain.model.PokemonId
 import io.github.jay41chen.pokedex.domain.model.TypeName
 import io.github.jay41chen.pokedex.domain.model.TypeSection
 import io.github.jay41chen.pokedex.domain.usecase.groupByType
+import io.github.jay41chen.pokedex.ui.component.tileWidthDp
 import io.github.jay41chen.pokedex.ui.theme.PokedexTheme
 
 @Composable
@@ -47,20 +51,26 @@ fun HomeScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            PocketSection(
-                pocket = state.pocket,
-                onRelease = { onIntent(HomeIntent.Release(it)) },
-                onPokemonClick = onPokemonClick,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary)
-            CatalogContent(
-                catalog = state.catalog,
-                sections = state.sections,
-                onCapture = { onIntent(HomeIntent.Capture(it)) },
-                onPokemonClick = onPokemonClick,
-                modifier = Modifier.weight(1f),
-            )
+        BoxWithConstraints(modifier = Modifier.padding(padding)) {
+            // 卡片寬度依可用寬度算（至少 3 張、右邊露出半張），不寫死
+            val tileWidth = tileWidthDp(maxWidth.value).dp
+            Column(modifier = Modifier.fillMaxSize()) {
+                PocketSection(
+                    pocket = state.pocket,
+                    onRelease = { onIntent(HomeIntent.Release(it)) },
+                    onPokemonClick = onPokemonClick,
+                    tileWidth = tileWidth,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.primary)
+                CatalogContent(
+                    catalog = state.catalog,
+                    sections = state.sections,
+                    onCapture = { onIntent(HomeIntent.Capture(it)) },
+                    onPokemonClick = onPokemonClick,
+                    tileWidth = tileWidth,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -123,5 +133,17 @@ private fun HomeReadyEmptyPocketPreview() = PokedexTheme {
 @Preview(showBackground = true)
 @Composable
 private fun HomeReadyWithPocketPreview() = PokedexTheme {
+    HomeScreen(previewState(CatalogStatus.Ready, samplePocket, sampleSections), {}, {})
+}
+
+@Preview(showBackground = true, widthDp = 840)
+@Composable
+private fun HomeTabletPreview() = PokedexTheme {
+    HomeScreen(previewState(CatalogStatus.Ready, samplePocket, sampleSections), {}, {})
+}
+
+@Preview(showBackground = true, fontScale = 1.3f)
+@Composable
+private fun HomeLargeFontPreview() = PokedexTheme {
     HomeScreen(previewState(CatalogStatus.Ready, samplePocket, sampleSections), {}, {})
 }

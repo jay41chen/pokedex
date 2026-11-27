@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -17,11 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.jay41chen.pokedex.R
 import io.github.jay41chen.pokedex.domain.model.PokemonId
 import io.github.jay41chen.pokedex.domain.model.TypeSection
 import io.github.jay41chen.pokedex.ui.component.PokemonTile
+import io.github.jay41chen.pokedex.ui.component.TileRowStartPaddingDp
+import io.github.jay41chen.pokedex.ui.component.TileSpacingDp
 
 @Composable
 fun CatalogContent(
@@ -29,6 +33,7 @@ fun CatalogContent(
     sections: List<TypeSection>,
     onCapture: (PokemonId) -> Unit,
     onPokemonClick: (PokemonId) -> Unit,
+    tileWidth: Dp,
     modifier: Modifier = Modifier,
 ) {
     when (catalog) {
@@ -60,8 +65,8 @@ fun CatalogContent(
                             count = section.pokemon.size,
                         )
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = TileRowStartPaddingDp.dp),
+                            horizontalArrangement = Arrangement.spacedBy(TileSpacingDp.dp),
                         ) {
                             items(section.pokemon, key = { it.id.value }) { card ->
                                 PokemonTile(
@@ -69,7 +74,7 @@ fun CatalogContent(
                                     ballContentDescription = captureText,
                                     onBallClick = { onCapture(card.id) },
                                     onClick = { onPokemonClick(card.id) },
-                                    modifier = Modifier.animateItem(),
+                                    modifier = Modifier.animateItem().width(tileWidth),
                                 )
                             }
                         }

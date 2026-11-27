@@ -3,6 +3,7 @@ package io.github.jay41chen.pokedex.ui.detail
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import coil3.compose.AsyncImage
 import io.github.jay41chen.pokedex.R
 import io.github.jay41chen.pokedex.domain.model.PokemonCard
@@ -65,7 +67,7 @@ fun DetailScreen(
                 actions = {
                     if (state is DetailUiState.Content) {
                         Text(
-                            text = "#" + state.detail.card.id.value.toString().padStart(3, '0'),
+                            text = formatPokemonNumber(state.detail.card.id),
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(end = 16.dp),
                         )
@@ -105,38 +107,42 @@ private fun DetailContent(
 ) {
     val card = detail.card
     val species = detail.species
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        AsyncImage(
-            model = card.imageUrl,
-            contentDescription = card.name,
-            placeholder = PlaceholderPainter,
-            error = PlaceholderPainter,
-            fallback = PlaceholderPainter,
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // 寬度 45% 對應 mock 比例，上限 240dp 避免平板／橫向時大圖佔滿畫面
+        val imageSize = min(maxWidth * 0.45f, 240.dp)
+        Column(
             modifier = Modifier
-                .size(160.dp)
-                .align(Alignment.CenterHorizontally)
-                .clip(RoundedCornerShape(16.dp)),
-        )
-        Text(
-            text = card.name,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        )
-        FlowRow(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            detail.types.forEach { TypeChip(it) }
+            AsyncImage(
+                model = card.imageUrl,
+                contentDescription = card.name,
+                placeholder = PlaceholderPainter,
+                error = PlaceholderPainter,
+                fallback = PlaceholderPainter,
+                modifier = Modifier
+                    .size(imageSize)
+                    .align(Alignment.CenterHorizontally)
+                    .clip(RoundedCornerShape(16.dp)),
+            )
+            Text(
+                text = card.name,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            FlowRow(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                detail.types.forEach { TypeChip(it) }
+            }
+            EvolvesFromSection(species = species, onPokemonClick = onPokemonClick)
+            DescriptionSection(species = species)
         }
-        EvolvesFromSection(species = species, onPokemonClick = onPokemonClick)
-        DescriptionSection(species = species)
     }
 }
 
@@ -154,6 +160,9 @@ private fun TypeChip(type: TypeName) {
         )
     }
 }
+
+/** 詳細頁編號：對應 mock 的 #5、#6，不補零。 */
+internal fun formatPokemonNumber(id: PokemonId): String = "#${id.value}"
 
 /** Evolves from 列點下去要去的 id；前一階段的圖還沒抓到（imageUrl == null）就沒有 detail 可看，回傳 null 表示不可點。 */
 internal fun evolvesFromClickTarget(evolvesFrom: PokemonCard): PokemonId? =
