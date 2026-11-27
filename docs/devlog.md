@@ -32,26 +32,62 @@
   - 修正輪：F1 加 `runIfResumed` guard 加 2 個測試；F2 在 VM 內部加「catalog 已第一次 emit」旗標，新增 V6、V6b，`HomeUiState` 與契約不動；`:app` 測試 13 個全過。複審通過；guard 沒包在返回鍵上的 mutation 測試抓不到，只有模擬器能重現空白畫面。
   - N1（複審低）：返回首頁 0.5–1 秒內點卡片會被丟掉。查證後官方解法就是 lifecycle-runtime-compose 2.8 的 `dropUnlessResumed`，語意與 `runIfResumed` 相同，N1 是官方做法本身的取捨；人決定不改程式，只在 KDoc 註明（自己寫是因為官方只接受無參數 lambda）。Judge 對照 2.11.0 sources jar 確認一致。
   - 人決定先不修、交給 backlog 或 NOTES：詳細頁 `#005`（mock 是 `#5`）、卡片名稱字色與字重、列表右側沒露出半張卡、最右欄寶貝球觸控寬約 42.7dp、描述斷行、N2（一次單擊返回沒反應，重現不了）、import 順序、冷啟動慢（推測主機 load 高）。
-- PO：spec 測試清單加 V6，`CatalogStatus.Loading` 註解補上「catalog 尚未第一次 emit」（F2 的根因是「DB 空」有歧義；語意與型別不變）（待 commit）。
+- PO：spec 測試清單加 V6，`CatalogStatus.Loading` 註解補上「catalog 尚未第一次 emit」（F2 的根因是「DB 空」有歧義；語意與型別不變）（docs: add V6 and clarify Loading in spec, log Hilt and Navigation integration `e2679cc`）。
+- RD-data FI 段：debug 限定的故障注入，用來在模擬器上驗 cache eviction（feat(data): add debug-only fault injection for cache eviction checks `a161339`）。
+  - AI 產出：`FaultInjectionInterceptor` 讀 `filesDir/fault_urls.txt`，URL 完全相符時把 body 換成 `{}`；release build 是空的 stub。unit 50 → 53。
+  - Judge：通過，3 個 mutation 都抓到；低 4 項人決定不修。
+- RD-data FT 段：描述保留 `\n`（fix(data): keep line breaks in flavor text descriptions `38abb5b`）。12:30 開始，Judge 12:44–12:46。
+  - AI 產出：`toSpecies` 把 `\r\n`、`\r` 轉成 `\n`、`\f` 轉空白，只合併空白與 tab，去掉換行前後的空白；DB 存原文不變。新增 M3c（Charizard 原文）、M3d；unit 53 → 55。
+  - Judge：通過。還原成 `\s+`、拿掉 `\f` 轉空白、拿掉去除換行前後空白，3 個 mutation 都抓到；curl 抽查 6 隻的第一筆英文描述，Charizard 與 mock 一致。
+  - 低 2 項：理由註解沒標 [待確認]（人決定修成只引用 spec）；NBSP 等 Unicode 空白沒處理（人決定列進 spec backlog，known issue）。
+- RD-app 對齊 mock 段（feat(app): align UI with mock and size tiles from available width `020e435`）。Do 12:23–12:25，編譯＋測試 12:27–12:28，Judge 12:28–12:42。
+  - AI 產出：卡片寬度依可用寬度算，至少 3 張完整再露半張；Pocket 空時用看不見的佔位卡撐高度；寶貝球觸控 48dp；`#5` 不補零；名稱 bodySmall 灰字；詳細頁大圖 min(寬 × 45%, 240dp)、名稱 titleLarge。新增 TileWidthTest（2）、DetailFormatTest（1），16 個全過。
+  - Judge：通過。補零、拿掉半張、拿掉至少 3 張，3 個 mutation 都抓到；直向、橫向、平板 800dp、字級 1.3 四種截圖逐項對照 mock，寶貝球實測 48×48dp。
+  - 意外：AI 原本要在 UI 加描述換行的格式化，只查了 `RemoteMappers`，沒發現 `DomainMappers` 已把 `\n` 換成空白；PO 抓到後拿掉，改由 RD-data 的 FT 段處理。
+- RD-app low 修正段（fix(app): scroll pocket to newest capture, cap detail image by height `ad17d87`）。Do 12:48–12:49，Judge 12:50–13:10。
+  - AI 產出：TileWidthTest 預期值寫死（原本用和實作同一條公式算）；大圖再加 高 × 40% 上限；捕捉時設旗標，Pocket 第一張改變時 `animateScrollToItem(0)`；Preview 改用有換行的 Charmeleon 描述。
+  - Judge：通過。目標寬改 110 → 100 被測試抓到；拿掉高度上限、拿掉捲動兩個 mutation 在模擬器重現（名稱被擠出第一屏、新卡只露 12px）。描述換行在模擬器確認：Charizard、Charmeleon 各 5 行，斷行與 mock 一致。
+  - 低 2 項（連續捕捉的理論競態，實測 0.2／0.4／0.7 秒都沒重現；捕捉失敗時旗標殘留）。
+- RD-app 寫入失敗記 log 段（fix(app): log capture and release write failures instead of crashing `2ddb17f`）。Do 13:16–13:17，Judge 13:18–13:23。
+  - 起因：`HomeViewModel` 的捕捉／釋放用 `viewModelScope.launch` 沒有錯誤處理，Room 寫入一丟例外 app 就 crash。人決定只記 log、不顯示 Snackbar。
+  - AI 產出：`:app` 自己的 `AppLogger`（`:data` 的 `DataLogger` 是 internal）、`LoggingModule`；VM 用 `CoroutineExceptionHandler` 記 warn。新增 V7、V8，18 個全過。
+  - Judge：通過。拿掉兩邊的 handler、handler 吞掉例外但不記 log，3 個 mutation 都抓到。沒有 handler 時例外只印到 stderr、測試不會紅，紅燈全靠 logger 斷言；doer 寫完時就提出這個疑問，Judge 實測確認。
+  - 低 4 項人決定不修；Room 寫入失敗在真機上無法重現，這條路徑只有 JVM 測試證明。
+- PO：spec 記下描述換行、M3c／M3d、Unicode 空白 backlog、寫入失敗記 log 與 V7／V8、Evolves from 載入中跳 Snackbar（從 backlog 拉進來）（docs(spec): record flavor text, write-failure logging and Evolves from snackbar decisions `e3a3a65`）。
+- RD-data MV 段（手動驗證，HEAD `2ddb17f`）：13:29–13:44，installDebug 42 秒。證據截圖與 logcat 留在本機，不進 git。
+  - MV1 kill 後續抓：通過。kill 前抓完 1–6 號，重開後第一批請求是 7–11，沒有重抓 list 和 1–6。`am kill` 對剛按 HOME 的 app 沒作用（pid 不變），改用 `run-as kill -9`。
+  - MV2 全部抓完再開：新 process 的 OkHttp 請求數 0。
+  - MV3 首次開 app 在飛航模式：空狀態文字有出現，關掉飛航模式切回 app 後自動載入；1fps 連拍 25 秒都沒拍到 Snackbar，RD-data 回報為疑似 bug。RD-app 逐格拆錄影（每 0.25 秒）後確認 Snackbar 有出現：錄影 14.5 秒出現、17.0 秒淡出，約 2 秒；**不是 bug**。`SnackbarDuration.Short` 是 4 秒，若截圖真是每秒一張不可能漏掉 2 秒的畫面，所以截圖漏掉、以及只顯示約 2 秒的原因都還沒確認 [待確認]：可能是模擬器過載（logcat 裡系統行程也大量 `Skipped frames`）讓 `screencap` 間隔遠大於 1 秒、進場動畫被吃掉計時，或截圖與錄影不是同一次啟動。
+  - MV4 連線洩漏：三份 logcat 搜不到 "leaked"；OkHttp 要等 GC 才印，只算弱證據。
+  - MV5 cache eviction：pokemon/25 被換成 `{}` 時記永久性失敗，journal 該 key 依序 DIRTY → CLEAN → REMOVE，Electric 列少了 Pikachu；拿掉故障後只重抓 pokemon/25 和它的圖，Pikachu 回來。
+  - 附帶：按 HOME 幾秒後背景請求全部 `UnknownHostException`，推測是 API 37 對背景 app 的網路限制 [待確認]，sync 歸成暫時性失敗、回前景補抓；Pikachu 插到列最前面時列表保持原位，沒跳回開頭。
 **決定**
 - R1–R7 列進 spec 測試清單，不標 ★。
 - DI 維持原分工：`:data` 提供自己的 Hilt binding，實作類別保持 `internal`（人問過是否該由 RD-app 做，討論後維持）。
 - 缺 provider 不另加 `@EntryPoint` 提早驗，整合時由 `:app` 編譯驗到。
 - 轉場中的點擊防護照官方 `dropUnlessResumed` 的語意，接受「轉場期間點擊被丟掉」的取捨。
 - spec 加 V6、釐清 `Loading` 定義（人同意）。
+- 描述保留 `\n`、`\f` 轉空白（對照 mock 的 Charizard、Charmeleon）；轉換放在 domain mapper，DB 存原文。
+- 捕捉／釋放寫入失敗只記 log，不顯示 Snackbar、不 crash。
+- 「點了還沒載入的 Evolves from 跳 Snackbar」從 backlog 拉進來做。
+- flavor\_text 的 Unicode 空白列為 known issue（backlog）。
 
-**AI 協作紀錄**（NOTES 第 1 題素材）：這兩筆不是人推翻 AI 的提議，而是 AI 規劃時憑印象假設函式庫行為、沒有先驗證，由 Judge 的 mutation 抓出：`fullBindingGraphValidation` 的作用、H2b 的例外情境（細節見上方 H 段）。
+**AI 協作紀錄**（NOTES 第 1 題素材）
+- 這兩筆不是人推翻 AI 的提議，而是 AI 規劃時憑印象假設函式庫行為、沒有先驗證，由 Judge 的 mutation 抓出：`fullBindingGraphValidation` 的作用、H2b 的例外情境（細節見上方 H 段）。
+- RD-app 的 AI 只查了一個 mapper 就下結論（描述換行），PO 對照 `DomainMappers` 抓到。
+- AI 寫的 TileWidthTest 用和實作同一條公式算預期值，公式錯時測試跟著錯；Judge 列為低，人決定改成寫死。
+- MV3 的誤判：截圖沒拍到 Snackbar 就被當成 bug，逐格看錄影才確認有出現；「1fps 剛好漏掉」的解釋 AI 直接接受了，PO 對照 4 秒的 duration 才發現算不通。驗證方法本身的取樣率也要檢查。
 
 **未決・卡住**
-- 和 mock 的差異（人決定先不修，可開一個 UI 小階段）：`#005` vs `#5`、卡片名稱字色與字重、列表右側沒露出半張卡。
-- 待實測：index 0 插入新列時的 key 錨定、`flavor_text` 的 `\f` 與描述斷行、kill 後續抓、首次啟動飛航模式、連線洩漏警告。
-- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；沒有 Compose UI test，導覽 guard、`onStart` 觸發、Coil 共用 client、`@HiltViewModel` 只能靠模擬器與人工檢查；R5 只鎖住 DB 讀回順序；寶貝球觸控寬約 42.7dp（< 48dp）；N1 的轉場取捨；N2 重現不了。
+- MV3：Snackbar 顯示約 2 秒，要不要改成 `SnackbarDuration.Long` 等人決定。
+- 待實測還剩：離線時按返回再立刻重開、離線且 DB 空時旋轉、上方插入整列新 type（MV5 只驗了列內插入）。前兩項要看 Snackbar。
+- RD-app：V5 測試改名 Judge 通過（18 個全過），待 commit；Evolves from 載入中 Snackbar 段等人放行。
+- 要寫進 NOTES：系統字級 1.5 倍時長名字被截斷；`PokedexTheme` 兼管狀態列 scrim；沒有 Compose UI test，導覽 guard、`onStart` 觸發、Coil 共用 client、`@HiltViewModel`、Snackbar 顯示只能靠模擬器與人工檢查；R5 只鎖住 DB 讀回順序；N1 的轉場取捨；N2 重現不了；連續捕捉的理論競態；Room 寫入失敗只有 JVM 測試證明；背景網路被斷（API 37，[待確認]）；flavor\_text Unicode 空白。
 
 **下一步**
-- 使用者 push RD-app 的整合（`ae2d86b`）與 PO 的 spec＋devlog。
-- 手動驗證（spec「手動驗證」與「待實測」）：RD-data 做 kill 後續抓、飛航模式、cache eviction、連線洩漏；模擬器由 PO 排隊。
-- 決定要不要開「對齊 mock」UI 小階段。
-- PO：README（app 已能跑）、NOTES（第 6 題補上整合與驗證的實際時間）。
+- 人決定 Snackbar duration；補驗剩下的待實測。
+- RD-app Evolves from Snackbar 段（人放行後）。
+- PO：README 補截圖後 commit；NOTES 先和人談結構再寫（第 3 題用 MV 結果，第 6 題補實際時間）。
 
 ## 2026-11-26（一面、範圍議定、契約凍結）
 

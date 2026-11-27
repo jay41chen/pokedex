@@ -304,7 +304,7 @@ class MainViewModel @Inject constructor(private val requestSync: RequestSync) : 
 | --- | --- | --- |
 | 三條資料流在 VM 合併 | `Loading`／`Empty` 是畫面概念，不屬於 domain；用 VM 單元測試守 | `ObserveHome` use case：只是把 combine 搬進 domain |
 | Snackbar 訊息放進 state，UI 顯示後回報 | 旋轉、背景都不會掉或重複；測試只需斷言 state，不需 Turbine。VM 記 `lastShownRound`：收到 round 比它大的 `Finished` 時立即推進到該 round（`Success` 也推進），不是 `Success` 才產生 message；較新一輪的結果取代尚未顯示的舊 message，`Success` 則清成 `null`；「顯示過了沒」是畫面的事，留在 VM。旋轉會觸發新的一輪，離線時 Snackbar 會再出現一次（那一輪確實又是離線），接受 | `SharedFlow(replay=0)` 會掉；`replay=1` 會重播；`Channel` 取出後被取消會掉 |
-| Evolves from 前一階段未有 detail（`imageUrl == null`）時不可點 | 詳細頁只會收到已有 detail 的 id，`Loading` 不會卡住 | 可點＋詳細頁處理「還沒資料」：多一個狀態和等待規則 |
+| Evolves from 前一階段未有 detail（`imageUrl == null`）時不導頁，點了跳 Snackbar | 詳細頁只會收到已有 detail 的 id，`Loading` 不會卡住；Snackbar 讓使用者知道點到了 | 可點＋詳細頁處理「還沒資料」：多一個狀態和等待規則 |
 | sync 由 Activity 範圍的 `MainViewModel` 觸發 | 分層規則沒有例外；前景事件不屬於任何畫面 | Activity 直接注入 use case：繞過 VM；用 `HomeViewModel`：範圍不同會建出第二個實例；`ProcessLifecycleOwner`：新依賴 |
 
 ### 第 4a 輪：DB、pendingIds、transaction、mapper（2026-11-26 凍結）
